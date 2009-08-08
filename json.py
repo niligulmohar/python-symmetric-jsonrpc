@@ -1,7 +1,7 @@
 class ReIterator(object):
-    def __init__(self, iter):
+    def __init__(self, i):
         self.prefix = [] # In reverse order!
-        self.iter = iter(iter)
+        self.i = iter(i)
 
     def __iter__(self):
         return self
@@ -9,18 +9,21 @@ class ReIterator(object):
     def next(self):
         if self.prefix:
             return self.prefix.pop()
-        self.iter.next()
+        return self.i.next()
 
     def put(self, value):
         self.prefix.append(value)
 
     def peek(self):
         if not self.prefix:
-            self.put(self.next())
+            self.put(self.i.next())
         return self.prefix[-1]
 
 class Reader(object):
     "An SAX-like recursive-descent parser for JSON."
+
+    def __init__(self, s):
+        self.s = ReIterator(s)
     
     # Override these in a subclass to actually do something with the
     # parsed data
@@ -38,110 +41,147 @@ class Reader(object):
     def true(self): pass
     def false(self): pass
     def null(self): pass
-    def fail(self, s): pass
+    def fail(self, msg): pass
 
-    def _read_pair(self, s):
+    def _assert(self, c, values):
+        if c not in values:
+            self.fail("<%s> not in <%s>" % (c, values))
+        return c
+
+    def _read_pair(self):
         self.pair_begin()
-        self._read_string(s)
-        s.next() == ':' or self.fail(s)
-        self._read_value(s)
+        self._read_string()
+        self._assert(self.s.next(), ':')
+        self._read_value()
         self.pair_end()
     
-    def _read_object(self, s):
+    def _read_object(self):
         self.object_begin()
-        s.peek() == '{' or self.fail(s)
-        while s.next() != '}':
-            self._read_pair(s)
-            s.peek() in (',', '}') or self.fail(s)
+        self._assert(self.s.peek(), '{')
+        while self.s.next() != '}':
+            self._read_pair()
+            self._assert(self.s.peek(), ',}')
         self.object_end()
         
-    def _read_array(self, s):
+    def _read_array(self):
         self.array_begin()
-        s.peek() == '{' or self.fail(s)
-        while s.next() != '}':
-            self._read_value(s)
-            s.peek() in (',', '}') or self.fail(s)
+        self._assert(self.s.peek(), '{')
+        while self.s.next() != '}':
+            self._read_value()
+            self._assert(self.s.peek(), ',}')
         self.array_end()
 
-    def _read_char(self, s):
-        c = s.next()
+    def _read_char(self):
+        c = self.s.next()
         if c == '\\':
-            c = s.next()
+            c = self.s.next()
             if c == 'b': c = '\b'
             elif c == 'f': c = '\f'
             elif c == 'n': c = '\n'
             elif c == 'r': c = '\r'
             elif c == 't': c = '\t'
             elif c == 'u':
-                d1 = s.next()
-                d2 = s.next()
-                d3 = s.next()
-                d4 = s.next()
+                d1 = self.s.next()
+                d2 = self.s.next()
+                d3 = self.s.next()
+                d4 = self.s.next()
                 c = unichr(int(d1+d2+d3+d4, 16))
-            else: c in ('"\\/') or self.fail(s)
+            else: self._assert(c, '"\\/')
         self.char(c)
 
-    def _read_string(self, s):
+    def _read_string(self):
         self.string_begin()
-        s.next() == '"' or self.fail(s)
-        while s.peek() != '"':
-            self._read_char(s)
-        s.next() == '"' or self.fail(s)
+        self._assert(self.s.next(), '"')
+        while self.s.peek() != '"':
+            self._read_char()
+        self._assert(self.s.next(), '"')
         self.string_end()
 
-    def _read_number(self, s):
+    def _read_number(self):
         self.number_begin()
-        if self.peek() == '-':
-            self.char(s.next())
-        if self.peek() == '0':
-            self.char(s.next())
+        if self.s.peek() == '-':
+            self.char(self.s.next())
+        if self.s.peek() == '0':
+            self.char(self.s.next())
         else:
-            self.peek() in '123456789' or self.fail(s)
-            self.char(s.next())
-            while s.peek() in '0123456789':
-                self.char(s.next())
-        if s.peek() == '.':
-            self.char(s.next())
-            s.peek() in '0123456789' or self.fail(s)
-            while s.peek() in '0123456789':
-                self.char(s.next())
-        if s.peek() in 'eE':
-            self.char(s.next())
-            if s.peek() in '+-':
-                self.char(s.next())
-            s.peek() in '0123456789' or self.fail(s)
-            while s.peek() in '0123456789':
-                self.char(s.next())
+            self._assert(self.s.peek(), '123456789')
+            self.char(self.s.next())
+            while self.s.peek() in '0123456789':
+                self.char(self.s.next())
+        if self.s.peek() == '.':
+            self.char(self.s.next())
+            self._assert(self.s.peek(), '0123456789')
+            while self.s.peek() in '0123456789':
+                self.char(self.s.next())
+        if self.s.peek() in 'eE':
+            self.char(self.s.next())
+            if self.s.peek() in '+-':
+                self.char(self.s.next())
+            self._assert(self.s.peek(), '0123456789')
+            while self.s.peek() in '0123456789':
+                self.char(self.s.next())
         self.number_end()
 
-    def _read_true(self, s):
-        s.next() == 't' or self.fail(s)
-        s.next() == 'r' or self.fail(s)
-        s.next() == 'u' or self.fail(s)
-        s.next() == 'e' or self.fail(s)
+    def _read_true(self):
+        self._assert(self.s.next(), 't')
+        self._assert(self.s.next(), 'r')
+        self._assert(self.s.next(), 'u')
+        self._assert(self.s.next(), 'e')
         self.true()
 
-    def _read_false(self, s):
-        s.next() == 'f' or self.fail(s)
-        s.next() == 'a' or self.fail(s)
-        s.next() == 'l' or self.fail(s)
-        s.next() == 's' or self.fail(s)
-        s.next() == 'e' or self.fail(s)
+    def _read_false(self):
+        self._assert(self.s.next(), 'f')
+        self._assert(self.s.next(), 'a')
+        self._assert(self.s.next(), 'l')
+        self._assert(self.s.next(), 's')
+        self._assert(self.s.next(), 'e')
         self.true()
 
-    def _read_null(self, s):
-        s.next() == 'n' or self.fail(s)
-        s.next() == 'u' or self.fail(s)
-        s.next() == 'l' or self.fail(s)
-        s.next() == 'l' or self.fail(s)
+    def _read_null(self):
+        self._assert(self.s.next(), 'n')
+        self._assert(self.s.next(), 'u')
+        self._assert(self.s.next(), 'l')
+        self._assert(self.s.next(), 'l')
         self.null()
 
-    def _read_value(self, s):
-        c = s.peek()
-        if c == '{': self._read_object(s)
-        elif c == '[': self._read_array(s)
-        elif c == '"': self._read_string(s)
-        elif c == 't': self._read_true(s)
-        elif c == 'f': self._read_false(s)
-        elif c == 'n': self._read_null(s)
-        else: self._read_number()
+    def _read_value(self):
+        c = self.s.peek()
+        if c == '{': return self._read_object()
+        elif c == '[': return self._read_array()
+        elif c == '"': return self._read_string()
+        elif c == 't': return self._read_true()
+        elif c == 'f': return self._read_false()
+        elif c == 'n': return self._read_null()
+        else: return self._read_number()
+
+    def read_value(self):
+        return self._read_value()
+
+    def read_values(self):
+        while True:
+            self._read_value()    
+
+class DebugReader(Reader):
+    def pair_begin(self): print '('
+    def pair_end(self): print ')'
+    def object_begin(self): print '{'
+    def object_end(self): print '}'
+    def array_begin(self): print '['
+    def array_end(self): print ']'
+    def string_begin(self): print '"'
+    def string_end(self): print '"'
+    def number_begin(self): print '<'
+    def number_end(self): print '>'
+    def char(self, c): print repr(c)
+    def true(self): print "TRUE"
+    def false(self): print "FALSE"
+    def null(self): print "NULL"
+    def fail(self, msg): raise Exception(msg)
+
+try:
+    DebugReader('{"foo":4}').read_value()
+except:
+    import sys, pdb
+    sys.last_traceback = sys.exc_info()[2]
+    pdb.pm()
+    
