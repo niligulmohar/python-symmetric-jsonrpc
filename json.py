@@ -63,22 +63,32 @@ class Reader(object):
     
     def _read_object(self):
         self.object_begin()
-        self._assert(self.s.peek(), '{')
-        while self.s.next() != '}':
-            self._read_space()
-            self._read_pair()
-            self._read_space()
-            self._assert(self.s.peek(), ',}')
+        self._assert(self.s.next(), '{')
+        self._read_space()
+        if self.s.peek() != '}':
+            while True:
+                self._read_pair()
+                self._read_space()
+                if self.s.peek() == '}':
+                    break
+                self._assert(self.s.next(), ',')
+                self._read_space()
+        self._assert(self.s.next(), '}')
         self.object_end()
         
     def _read_array(self):
         self.array_begin()
-        self._assert(self.s.peek(), '{')
-        while self.s.next() != '}':
-            self._read_space()
-            self._read_value()
-            self._read_space()
-            self._assert(self.s.peek(), ',}')
+        self._assert(self.s.next(), '[')
+        self._read_space()
+        if self.s.peek() != ']':
+            while True:
+                self._read_value()
+                self._read_space()
+                if self.s.peek() == ']':
+                    break
+                self._assert(self.s.next(), ',')
+                self._read_space()
+        self._assert(self.s.next(), ']')
         self.array_end()
 
     def _read_char(self):
@@ -171,27 +181,69 @@ class Reader(object):
         while True:
             self._read_value()    
 
-class DebugReader(Reader):
-    def pair_begin(self): print '('
-    def pair_end(self): print ')'
-    def object_begin(self): print '{'
-    def object_end(self): print '}'
-    def array_begin(self): print '['
-    def array_end(self): print ']'
-    def string_begin(self): print '"'
-    def string_end(self): print '"'
-    def number_begin(self): print '<'
-    def number_end(self): print '>'
-    def char(self, c): print repr(c)
-    def true(self): print "TRUE"
-    def false(self): print "FALSE"
-    def null(self): print "NULL"
+class ParserReader(Reader):
+    def _struct_begin(self):
+        self.state.append([])
+    def _struct_end(self):
+        self.state[-2].append(self.state[-1])
+        del self.state[-1]
+    def pair_begin(self): self._struct_begin()
+    def pair_end(self): self._struct_end()
+    def object_begin(self): self._struct_begin()
+    def object_end(self):
+        self.state[-1] = dict(self.state[-1])
+        self._struct_end()
+    def array_begin(self): self._struct_begin()
+    def array_end(self): self._struct_end()
+    def string_begin(self): self.state.append(u"")
+    def string_end(self):  self._struct_end()
+    def number_begin(self): self.state.append(u"")
+    def number_end(self):
+        if '.' in self.state[-1]:
+            self.state[-1] = float(self.state[-1]) 
+        else:
+            self.state[-1] = int(self.state[-1])
+        self._struct_end()
+    def char(self, c): self.state[-1] = self.state[-1] + c
+    def true(self): self.state[-1].append(True)
+    def false(self): self.state[-1].append(False)
+    def null(self): self.state[-1].append(None)
     def fail(self, msg): raise Exception(msg)
+    def read_value(self):
+        self.state = [[]]
+        self._read_value()
+        return self.state[-1][-1]
+    def read_values(self):
+        while True:
+            self.state = [[]]
+            self._read_value()    
+            yield self.state[-1][-1]        
 
-try:
-    DebugReader('{ "foo" :  4 }').read_value()
-except:
-    import sys, pdb
-    sys.last_traceback = sys.exc_info()[2]
-    pdb.pm()
-    
+class DebugReader(object):
+    def pair_begin(self): print '('; print self.state; return super(DebugReader, self).pair_begin()
+    def pair_end(self): print ')'; print self.state; return super(DebugReader, self).pair_end()
+    def object_begin(self): print '{'; print self.state; return super(DebugReader, self).object_begin()
+    def object_end(self): print '}'; print self.state; return super(DebugReader, self).object_end()
+    def array_begin(self): print '['; print self.state; return super(DebugReader, self).array_begin()
+    def array_end(self): print ']'; print self.state; return super(DebugReader, self).array_end()
+    def string_begin(self): print '"'; print self.state; return super(DebugReader, self).string_begin()
+    def string_end(self): print '"'; print self.state; return super(DebugReader, self).string_end()
+    def number_begin(self): print '<'; print self.state; return super(DebugReader, self).number_begin()
+    def number_end(self): print '>'; print self.state; return super(DebugReader, self).number_end()
+    def char(self, c): print repr(c); print self.state; return super(DebugReader, self).char(c)
+    def true(self): print "TRUE"; print self.state; return super(DebugReader, self).true()
+    def false(self): print "FALSE"; print self.state; return super(DebugReader, self).false()
+    def null(self): print "NULL"; print self.state; return super(DebugReader, self).null()
+    def fail(self, msg): super(DebugReader, self).fail(); raise Exception(msg)
+
+class MyReader(DebugReader, ParserReader): pass
+
+
+if __name__ == "__main__":
+    import sys
+    try:
+        print MyReader(sys.argv[1]).read_value()
+    except:
+        import sys, pdb
+        sys.last_traceback = sys.exc_info()[2]
+        pdb.pm()
