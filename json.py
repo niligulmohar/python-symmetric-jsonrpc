@@ -48,10 +48,16 @@ class Reader(object):
             self.fail("<%s> not in <%s>" % (c, values))
         return c
 
+    def _read_space(self):
+        while self.s.peek() in ' \t\r\n':
+            self.s.next()
+
     def _read_pair(self):
         self.pair_begin()
         self._read_string()
+        self._read_space()
         self._assert(self.s.next(), ':')
+        self._read_space()
         self._read_value()
         self.pair_end()
     
@@ -59,7 +65,9 @@ class Reader(object):
         self.object_begin()
         self._assert(self.s.peek(), '{')
         while self.s.next() != '}':
+            self._read_space()
             self._read_pair()
+            self._read_space()
             self._assert(self.s.peek(), ',}')
         self.object_end()
         
@@ -67,7 +75,9 @@ class Reader(object):
         self.array_begin()
         self._assert(self.s.peek(), '{')
         while self.s.next() != '}':
+            self._read_space()
             self._read_value()
+            self._read_space()
             self._assert(self.s.peek(), ',}')
         self.array_end()
 
@@ -179,7 +189,7 @@ class DebugReader(Reader):
     def fail(self, msg): raise Exception(msg)
 
 try:
-    DebugReader('{"foo":4}').read_value()
+    DebugReader('{ "foo" :  4 }').read_value()
 except:
     import sys, pdb
     sys.last_traceback = sys.exc_info()[2]
