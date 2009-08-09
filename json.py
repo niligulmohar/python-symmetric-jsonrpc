@@ -155,7 +155,7 @@ class Reader(object):
         self._assert(self.s.next(), 'l')
         self._assert(self.s.next(), 's')
         self._assert(self.s.next(), 'e')
-        self.true()
+        self.false()
 
     def _read_null(self):
         self._assert(self.s.next(), 'n')
@@ -236,14 +236,15 @@ class DebugReader(object):
     def null(self): print "NULL"; print self.state; return super(DebugReader, self).null()
     def fail(self, msg): super(DebugReader, self).fail(); raise Exception(msg)
 
-class MyReader(DebugReader, ParserReader): pass
+import unittest
 
+class TestReader(unittest.TestCase):
+    def test_read_value(self):
+        STR = '{"array": ["string", false, null], "object": {"number": 4711, "bool": true}}'
+        OBJ = {u"array": [u"string", False, None], u"object": {u"number": 4711, u"bool": True}}
+        reader = ParserReader(STR)
+        read_obj = reader.read_value()
+        self.assertEqual(OBJ, read_obj)
 
 if __name__ == "__main__":
-    import sys
-    try:
-        print MyReader(sys.argv[1]).read_value()
-    except:
-        import sys, pdb
-        sys.last_traceback = sys.exc_info()[2]
-        pdb.pm()
+    unittest.main()
