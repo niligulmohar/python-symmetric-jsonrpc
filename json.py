@@ -165,6 +165,7 @@ class Reader(object):
         self.null()
 
     def _read_value(self):
+        self._read_space()
         c = self.s.peek()
         if c == '{': return self._read_object()
         elif c == '[': return self._read_array()
@@ -199,7 +200,7 @@ class ParserReader(Reader):
     def string_end(self):  self._struct_end()
     def number_begin(self): self.state.append(u"")
     def number_end(self):
-        if '.' in self.state[-1]:
+        if '.' in self.state[-1] or 'e' in self.state[-1] or 'E' in self.state[-1]:
             self.state[-1] = float(self.state[-1]) 
         else:
             self.state[-1] = int(self.state[-1])
@@ -239,12 +240,46 @@ class DebugReader(object):
 import unittest
 
 class TestReader(unittest.TestCase):
+    def assertReadEqual(self, str, obj):
+        reader = ParserReader(str)
+        read_obj = reader.read_value()
+        self.assertEqual(obj, read_obj)
     def test_read_value(self):
         STR = '{"array": ["string", false, null], "object": {"number": 4711, "bool": true}}'
         OBJ = {u"array": [u"string", False, None], u"object": {u"number": 4711, u"bool": True}}
+        self.assertReadEqual(STR, OBJ)
+    def test_read_numbers(self):
+        STR = '[0, -1, 0.2, 1e+4, -2.5E-5, 1e20]'
+        self.assertReadEqual(STR, eval(STR))
+    def test_read_escape_string(self):
+        STR = r'"\b\f\n\r\t\u1234"'
+        OBJ = u"\b\f\n\r\t\u1234"
+        self.assertReadEqual(STR, OBJ)
+    def test_read_quote_string(self):
+        STR = r'"\""'
+        OBJ = u"\""
+        self.assertReadEqual(STR, OBJ)
+    def test_read_solidus_string(self):
+        STR = r'"\/"'
+        OBJ = u"/"
+        self.assertReadEqual(STR, OBJ)
+    def test_read_reverse_solidus_string(self):
+        STR = r'"\\"'
+        OBJ = u"\\"
+        self.assertReadEqual(STR, OBJ)
+    def test_read_whitespace(self):
+        STR = ''' {
+"array" : [ ] ,
+"object" : { }
+} '''
+        self.assertReadEqual(STR, eval(STR))
+    def test_read_values(self):
+        STR = "{}[]true false null"
         reader = ParserReader(STR)
-        read_obj = reader.read_value()
-        self.assertEqual(OBJ, read_obj)
+        values = [{}, [], True, False, None]
+
+        for i, r in enumerate(reader.read_values()):
+            self.assertEqual(r, values[i])
 
 if __name__ == "__main__":
     unittest.main()
