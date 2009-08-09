@@ -1,3 +1,49 @@
+def json(obj):
+    if isinstance(obj, unicode):
+        result = '"'
+        for c in obj:
+            if c == '\b':
+                result += r'\b'
+            elif c == '\t':
+                result += r'\t'
+            elif c == '\n':
+                result += r'\n'
+            elif c == '\f':
+                result += r'\f'
+            elif c == '\r':
+                result += r'\r'
+            elif c == '"':
+                result += r'\"'
+            elif c == '\\':
+                result += r'\\'
+            elif c >= ' ' and c <= '~':
+                result += c
+            elif c > '~':
+                result += r'\u%04x' % ord(c)
+        return result + '"'
+    elif isinstance(obj, str):
+        return json(obj.decode())
+    elif isinstance(obj, bool):
+        return obj and 'true' or 'false'
+    elif isinstance(obj, int) or isinstance(obj, float) or isinstance(obj, long):
+        return repr(obj)
+    elif obj == None:
+        return 'null'
+    elif isinstance(obj, list):
+        result = '['
+        for n, i in enumerate(obj):
+            if (n > 0):
+                result += ','
+            result += json(i)
+        return result + ']'
+    elif isinstance(obj, dict):
+        result = '{'
+        for n, k in enumerate(obj):
+            if (n > 0):
+                result += ','
+            result += json(k) + ':' + json(obj[k])
+        return result + '}'
+
 class ReIterator(object):
     def __init__(self, i):
         self.prefix = [] # In reverse order!
@@ -244,6 +290,9 @@ class TestReader(unittest.TestCase):
         reader = ParserReader(str)
         read_obj = reader.read_value()
         self.assertEqual(obj, read_obj)
+        reader1 = ParserReader(json(obj))
+        read_obj1 = reader1.read_value()
+        self.assertEqual(obj, read_obj1)
     def test_read_value(self):
         STR = '{"array": ["string", false, null], "object": {"number": 4711, "bool": true}}'
         OBJ = {u"array": [u"string", False, None], u"object": {u"number": 4711, u"bool": True}}
