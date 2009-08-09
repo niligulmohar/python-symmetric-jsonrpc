@@ -20,6 +20,8 @@ def json(obj):
                 result += c
             elif c > '~':
                 result += r'\u%04x' % ord(c)
+            else:
+                raise Exception("Cannot encode character %x into json string" % ord(c))
         return result + '"'
     elif isinstance(obj, str):
         return json(obj.decode())
@@ -329,6 +331,7 @@ class TestReader(unittest.TestCase):
 
         for i, r in enumerate(reader.read_values()):
             self.assertEqual(r, values[i])
-
+    def test_encode_invalid_control_character(self):
+        self.assertRaises(Exception, lambda: json('\x00'))
 if __name__ == "__main__":
     unittest.main()
