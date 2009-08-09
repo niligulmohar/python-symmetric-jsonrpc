@@ -24,7 +24,7 @@ class Reader(object):
 
     def __init__(self, s):
         self.s = ReIterator(s)
-    
+
     # Override these in a subclass to actually do something with the
     # parsed data
     def pair_begin(self): pass
@@ -60,7 +60,7 @@ class Reader(object):
         self._read_space()
         self._read_value()
         self.pair_end()
-    
+
     def _read_object(self):
         self.object_begin()
         self._assert(self.s.next(), '{')
@@ -75,7 +75,7 @@ class Reader(object):
                 self._read_space()
         self._assert(self.s.next(), '}')
         self.object_end()
-        
+
     def _read_array(self):
         self.array_begin()
         self._assert(self.s.next(), '[')
@@ -180,7 +180,7 @@ class Reader(object):
 
     def read_values(self):
         while True:
-            self._read_value()    
+            self._read_value()
 
 class ParserReader(Reader):
     def _struct_begin(self):
@@ -217,8 +217,8 @@ class ParserReader(Reader):
     def read_values(self):
         while True:
             self.state = [[]]
-            self._read_value()    
-            yield self.state[-1][-1]        
+            self._read_value()
+            yield self.state[-1][-1]
 
 class DebugReader(object):
     def pair_begin(self): print '('; print self.state; return super(DebugReader, self).pair_begin()
