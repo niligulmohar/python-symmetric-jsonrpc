@@ -45,6 +45,8 @@ def json(obj):
                 result += ','
             result += json(k) + ':' + json(obj[k])
         return result + '}'
+    else:
+        raise Exception("Cannot encode %s to json" % obj)
 
 class ReIterator(object):
     def __init__(self, i):
@@ -333,5 +335,7 @@ class TestReader(unittest.TestCase):
             self.assertEqual(r, values[i])
     def test_encode_invalid_control_character(self):
         self.assertRaises(Exception, lambda: json('\x00'))
+    def test_encode_invalid_object(self):
+        self.assertRaises(Exception, lambda: json(Reader("")))
 if __name__ == "__main__":
     unittest.main()
