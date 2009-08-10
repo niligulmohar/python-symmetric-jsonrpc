@@ -1,50 +1,52 @@
-def json(obj):
+def json(obj, io):
     if isinstance(obj, unicode):
-        result = '"'
+        io.write('"')
         for c in obj:
             if c == '\b':
-                result += r'\b'
+                io.write(r'\b')
             elif c == '\t':
-                result += r'\t'
+                io.write(r'\t')
             elif c == '\n':
-                result += r'\n'
+                io.write(r'\n')
             elif c == '\f':
-                result += r'\f'
+                io.write(r'\f')
             elif c == '\r':
-                result += r'\r'
+                io.write(r'\r')
             elif c == '"':
-                result += r'\"'
+                io.write(r'\"')
             elif c == '\\':
-                result += r'\\'
+                io.write(r'\\')
             elif c >= ' ' and c <= '~':
-                result += c
+                io.write(c)
             elif c > '~':
-                result += r'\u%04x' % ord(c)
+                io.write(r'\u%04x' % ord(c))
             else:
                 raise Exception("Cannot encode character %x into json string" % ord(c))
-        return result + '"'
+        io.write('"')
     elif isinstance(obj, str):
-        return json(obj.decode())
+        json(obj.decode(), io)
     elif isinstance(obj, bool):
-        return obj and 'true' or 'false'
+        io.write(obj and 'true' or 'false')
     elif isinstance(obj, int) or isinstance(obj, float) or isinstance(obj, long):
-        return repr(obj)
+        io.write(repr(obj))
     elif obj == None:
-        return 'null'
+        io.write('null')
     elif isinstance(obj, list):
-        result = '['
+        io.write('[')
         for n, i in enumerate(obj):
             if (n > 0):
-                result += ','
-            result += json(i)
-        return result + ']'
+                io.write(',')
+            json(i, io)
+        io.write(']')
     elif isinstance(obj, dict):
-        result = '{'
+        io.write('{')
         for n, k in enumerate(obj):
             if (n > 0):
-                result += ','
-            result += json(k) + ':' + json(obj[k])
-        return result + '}'
+                io.write(',')
+            json(k, io)
+            io.write(':')
+            json(obj[k], io)
+        io.write('}')
     else:
         raise Exception("Cannot encode %s to json" % obj)
 
@@ -288,13 +290,16 @@ class DebugReader(object):
     def fail(self, msg): super(DebugReader, self).fail(); raise Exception(msg)
 
 import unittest
+import cStringIO
 
 class TestReader(unittest.TestCase):
     def assertReadEqual(self, str, obj):
         reader = ParserReader(str)
         read_obj = reader.read_value()
         self.assertEqual(obj, read_obj)
-        reader1 = ParserReader(json(obj))
+        io = cStringIO.StringIO()
+        json(obj, io)
+        reader1 = ParserReader(io.getvalue())
         read_obj1 = reader1.read_value()
         self.assertEqual(obj, read_obj1)
     def test_read_value(self):
@@ -334,8 +339,8 @@ class TestReader(unittest.TestCase):
         for i, r in enumerate(reader.read_values()):
             self.assertEqual(r, values[i])
     def test_encode_invalid_control_character(self):
-        self.assertRaises(Exception, lambda: json('\x00'))
+        self.assertRaises(Exception, lambda: json('\x00', cStringIO.StringIO()))
     def test_encode_invalid_object(self):
-        self.assertRaises(Exception, lambda: json(Reader("")))
+        self.assertRaises(Exception, lambda: json(Reader(""), cStringIO.StringIO()))
 if __name__ == "__main__":
     unittest.main()
