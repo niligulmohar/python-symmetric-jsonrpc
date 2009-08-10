@@ -50,6 +50,16 @@ def json(obj, io):
     else:
         raise Exception("Cannot encode %s to json" % obj)
 
+class FileIterator(object):
+    def __init__(self, file):
+        self.file = file
+        
+    def next(self):
+        try:
+            return self.file.read(1)
+        except:
+            return StopIteration
+
 class ReIterator(object):
     def __init__(self, i):
         self.prefix = [] # In reverse order!
@@ -75,7 +85,9 @@ class Reader(object):
     "An SAX-like recursive-descent parser for JSON."
 
     def __init__(self, s):
-        self.s = ReIterator(s)
+        if hasattr(s, "read"):
+            s = FileIterator(s)
+        self.s = ReIterator(iter(s))
 
     # Override these in a subclass to actually do something with the
     # parsed data
