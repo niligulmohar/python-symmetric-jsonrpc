@@ -53,6 +53,9 @@ def json(obj, io):
 class FileIterator(object):
     def __init__(self, file):
         self.file = file
+
+    def __iter__(self):
+        return self
         
     def next(self):
         try:

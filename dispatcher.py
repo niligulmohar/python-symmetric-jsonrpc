@@ -1,4 +1,4 @@
-import json, threading
+import json, threading, unittest, socket
 
 
 class Connection(object):
@@ -7,7 +7,7 @@ class Connection(object):
         self.dispatcher_thread = self.DispatcherThread(self)
         self.dispatcher_thread.start()
         
-    class DispatcherThread(Threading.Thread):
+    class DispatcherThread(threading.Thread):
         def __init__(self, conn, *arg, **kw):
             self.conn = conn
             self.reader = json.ParserReader(self.conn.socket)
@@ -28,7 +28,7 @@ class ServerConnection(object):
         self.dispatcher_thread = self.DispatcherThread(self)
         self.dispatcher_thread.start()
 
-    class DispatcherThread(Threading.Thread):
+    class DispatcherThread(threading.Thread):
         def __init__(self, conn, *arg, **kw):
             self.conn = conn
             threading.Thread.__init__(self, *arg, **kw)
@@ -55,4 +55,27 @@ class ThreadDispatcherMixin(object):
             threading.Thread.__init__(self, args=arg, kwargs=kw)
             
         def run(self, *arg, **kw):
+            return self.dispatch(*arg, **kw)
+
+        def dispatch(self, *arg, **kw):
             pass
+
+
+class TestConnection(unittest.TestCase):
+    def test_read_value(self):
+        class EchoServer(Connection):
+            def dispatch(self, value):
+                json.json(value, self.socket)
+
+        sockets = [s.makefile('r+') for s in socket.socketpair()]
+        reader = json.ParserReader(sockets[0])
+        echo_server = EchoServer(sockets[1])
+
+        obj = {'foo':1, 'bar':[1, 2]}
+        json.json(obj, sockets[0])
+        return_obj = reader.read_value()
+        
+        self.assertEqual(obj, return_obj)
+
+if __name__ == "__main__":
+    unittest.main()
