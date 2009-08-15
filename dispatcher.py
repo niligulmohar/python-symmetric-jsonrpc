@@ -1,20 +1,31 @@
-import json, threading, unittest, socket
+import json, threading, unittest, socket, time
 
 debug_dispatch = True
 
 class Connection(threading.Thread):
     def __init__(self, conn, *arg, **kw):
         self.conn = conn
+        self._shutdown = False
         threading.Thread.__init__(self, *arg, **kw)
         self.start()
           
     def run(self):
         if debug_dispatch: print "%s: RUN" % (self.getName(), ) 
-        for value in self.read():
-            if debug_dispatch: print "%s: DISPATCH: %s" % (self.getName(), value) 
-            self.dispatch(value)
+        try:
+            for value in self.read():
+                if debug_dispatch: print "%s: DISPATCH: %s" % (self.getName(), value) 
+                self.dispatch(value)
+                if debug_dispatch: print "%s: DISPATCH DONE: %s" % (self.getName(), value) 
+        except socket.error, e:
+            if not self._shutdown or e.args[0] != socket.EBADF:
+                if debug_dispatch: print "%s: ERROR: %s" % (self.getName(), e) 
+                raise
         if debug_dispatch: print "%s: END" % (self.getName(), ) 
-    
+
+    def shutdown(self):
+        self._shutdown = True
+        self.conn.close()
+
     def read(self):
         pass
 
@@ -36,9 +47,12 @@ class ServerConnection(Connection):
     ClientConnection = ClientConnection
 
     def read(self):
-        while True:
-            yield self.conn.accept()
-    
+        try:
+            while True:
+                yield self.conn.accept()
+        except:
+            print "XXXXXXXXXXXXX"
+        
     def dispatch(self, (socket, address)):
         self.ClientConnection(socket.makefile('r+'), name="%s/%s" % (self.getName(), self.ClientConnection.__name__))
 
@@ -84,12 +98,13 @@ class TestConnection(unittest.TestCase):
 
     def test_server(self):
         server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        server_socket.bind(('', 4711))
+        server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        server_socket.bind(('', 4712))
         server_socket.listen(1)
         echo_server = EchoServer(server_socket, name="EchoServer")
 
         client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        client_socket.connect(('localhost', 4711))
+        client_socket.connect(('localhost', 4712))
         client_socket = client_socket.makefile('r+')
 
         obj = {'foo':1, 'bar':[1, 2]}
@@ -100,16 +115,19 @@ class TestConnection(unittest.TestCase):
         return_obj = reader.read_value()
         
         self.assertEqual(obj, return_obj)
-
+        server_socket.close()
+        #echo_server.shutdown()
+        time.sleep(3)
 
     def test_threaded_server(self):
         server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        server_socket.bind(('', 4711))
+        server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        server_socket.bind(('', 4712))
         server_socket.listen(1)
         echo_server = ThreadedEchoServer(server_socket, name="EchoServer")
 
         client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        client_socket.connect(('localhost', 4711))
+        client_socket.connect(('localhost', 4712))
         client_socket = client_socket.makefile('r+')
 
         obj = {'foo':1, 'bar':[1, 2]}
@@ -120,6 +138,7 @@ class TestConnection(unittest.TestCase):
         return_obj = reader.read_value()
         
         self.assertEqual(obj, return_obj)
+        echo_server.shutdown()
 
 if __name__ == "__main__":
     unittest.main()
