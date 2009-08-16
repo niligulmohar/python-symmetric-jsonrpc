@@ -1,4 +1,4 @@
-import json, threading, unittest, socket, time
+import json, threading, unittest, socket, time, select
 
 debug_dispatch = True
 
@@ -11,20 +11,14 @@ class Connection(threading.Thread):
           
     def run(self):
         if debug_dispatch: print "%s: RUN" % (self.getName(), ) 
-        try:
-            for value in self.read():
-                if debug_dispatch: print "%s: DISPATCH: %s" % (self.getName(), value) 
-                self.dispatch(value)
-                if debug_dispatch: print "%s: DISPATCH DONE: %s" % (self.getName(), value) 
-        except socket.error, e:
-            if not self._shutdown or e.args[0] != socket.EBADF:
-                if debug_dispatch: print "%s: ERROR: %s" % (self.getName(), e) 
-                raise
+        for value in self.read():
+            if debug_dispatch: print "%s: DISPATCH: %s" % (self.getName(), value) 
+            self.dispatch(value)
+            if debug_dispatch: print "%s: DISPATCH DONE: %s" % (self.getName(), value) 
         if debug_dispatch: print "%s: END" % (self.getName(), ) 
 
     def shutdown(self):
         self._shutdown = True
-        self.conn.close()
 
     def read(self):
         pass
@@ -38,6 +32,7 @@ class ClientConnection(Connection):
         Connection.__init__(self, conn, *arg, **kw)
     
     def read(self):
+        # FIXME: How to handle shutdown here?
         return self.reader.read_values()
 
     def dispatch(self, value):
@@ -47,11 +42,15 @@ class ServerConnection(Connection):
     ClientConnection = ClientConnection
 
     def read(self):
-        try:
-            while True:
+        poll = select.poll()
+        poll.register(self.conn, select.POLLIN)
+
+        while True:
+            status = poll.poll(100)
+            if self._shutdown:
+                return
+            if status:
                 yield self.conn.accept()
-        except:
-            print "XXXXXXXXXXXXX"
         
     def dispatch(self, (socket, address)):
         self.ClientConnection(socket.makefile('r+'), name="%s/%s" % (self.getName(), self.ClientConnection.__name__))
@@ -115,9 +114,8 @@ class TestConnection(unittest.TestCase):
         return_obj = reader.read_value()
         
         self.assertEqual(obj, return_obj)
-        server_socket.close()
-        #echo_server.shutdown()
-        time.sleep(3)
+        echo_server.shutdown()
+        time.sleep(1)
 
     def test_threaded_server(self):
         server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
