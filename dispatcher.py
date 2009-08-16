@@ -105,11 +105,12 @@ class RPCClient(ClientConnection):
             elif 'result' in subject:
                 assert 'id' in subject
                 if subject['id'] in self.parent._recv_waiting:
-                    with self.parent._recv_waiting[subject['id']][0]:
-                        self.parent._recv_waiting[subject['id']][1] = subject
-                        self.parent._recv_waiting[subject['id']][0].notifyAll()
+                    with self.parent._recv_waiting[subject['id']]['condition']:
+                        self.parent._recv_waiting[subject['id']]['result'] = subject
+                        self.parent._recv_waiting[subject['id']]['condition'].notifyAll()
                 else:
                     self.dispatch_response(subject)
+                
             elif 'method' in subject:
                 self.dispatch_notification(subject)
 
@@ -133,12 +134,28 @@ class RPCClient(ClientConnection):
         # Server can call client from here...
         pass
 
-    def request(self, method, params = []):
+    def request(self, method, params = [], wait_for_response = False):
         with self._send_lock:
             self._request_id += 1
-            json.json({'method':method, 'params': params, 'id': self._request_id}, self.subject)
+            request_id = self._request_id
+            if wait_for_response:
+                self._recv_waiting[request_id] = {'condition':threading.Condition(), 'result': None}
+            json.json({'method':method, 'params': params, 'id': request_id}, self.subject)
             self.subject.flush()
-            return self._request_id
+
+            if not wait_for_response:
+                return request_id
+
+        try:
+            with self._recv_waiting[request_id]['condition']:
+                self._recv_waiting[request_id]['condition'].wait()
+                if self._recv_waiting[request_id]['result']['error'] is not None:
+                    raise Exception(self._recv_waiting[request_id]['result']['error']['args'],
+                                    serialized_type = self._recv_waiting[request_id]['result']['error']['type'])
+                return self._recv_waiting[request_id]['result']['result']
+        finally:
+            del self._recv_waiting[request_id]
+
 
     def respond(self, result, error, id):
         with self._send_lock:            
@@ -149,18 +166,6 @@ class RPCClient(ClientConnection):
         with self._send_lock:            
             json.json({'method':method, 'params': params}, self.subject)
             self.subject.flush()
-
-    def wait_for_response(self, id):
-          self._recv_waiting[id] = [threading.Condition(), None]
-          try:
-              with self._recv_waiting[id][0]:
-                  self._recv_waiting[id][0].wait()
-                  if self._recv_waiting[id][1]['error'] is not None:
-                      raise Exception(self._recv_waiting[id][1]['error']['args'],
-                                      serialized_type = self._recv_waiting[id][1]['error']['type'])
-                  return self._recv_waiting[id][1]['result']
-          finally:
-              del self._recv_waiting[id]
 
 class RPCServer(ServerConnection):
     class Dispatch(ThreadedClient):
@@ -193,7 +198,7 @@ class PongRPCServer(RPCServer):
                 def dispatch_request(self, subject):
                     print "PongRPCServer: dispatch_request", subject
                     assert subject['method'] == "ping"
-                    assert self.parent.wait_for_response(self.parent.request("pingping")) == "pingpong"
+                    assert self.parent.request("pingping", wait_for_response=True) == "pingpong"
                     print "PongRPCServer: back-pong"
                     return "pong"
 
@@ -337,7 +342,7 @@ class TestConnection(unittest.TestCase):
 
             client_socket = test_make_client_socket()
             client = PingRPCClient(client_socket)
-            self.assertEqual(client.wait_for_response(client.request("ping")), "pong")
+            self.assertEqual(client.request("ping", wait_for_response=True), "pong")
             server.shutdown()
 
 if __name__ == "__main__":
