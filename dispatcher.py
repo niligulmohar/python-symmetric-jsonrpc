@@ -1,10 +1,8 @@
 import json, threading, unittest, socket, time, select
 
-class Flags(object):
-    debug_dispatch = True
-    debug_thread = True
-
 class Thread(threading.Thread):
+    debug_thread = False
+
     def __init__(self, *arg, **kw):
         self._init(*arg, **kw)
         self.start()
@@ -22,9 +20,9 @@ class Thread(threading.Thread):
         threading.Thread.__init__(self, *arg, **kw)
 
     def run(self, *arg, **kw):
-        if Flags.debug_thread: print "%s: BEGIN" % self.getName()
+        if self.debug_thread: print "%s: BEGIN" % self.getName()
         self.run_thread(*arg, **kw)
-        if Flags.debug_thread: print "%s: END" % self.getName()
+        if self.debug_thread: print "%s: END" % self.getName()
 
     def shutdown(self):
         self._shutdown = True
@@ -37,13 +35,15 @@ class Thread(threading.Thread):
         pass
 
 class Connection(Thread):
+    debug_dispatch = False
+
     class Dispatch(Thread): pass
 
     def run_thread(self):
         for value in self.read():
-            if Flags.debug_dispatch: print "%s: DISPATCH: %s" % (self.getName(), value)
+            if self.debug_dispatch: print "%s: DISPATCH: %s" % (self.getName(), value)
             self.dispatch(value)
-            if Flags.debug_dispatch: print "%s: DISPATCH DONE: %s" % (self.getName(), value)
+            if self.debug_dispatch: print "%s: DISPATCH DONE: %s" % (self.getName(), value)
 
     def read(self):
         pass
@@ -111,8 +111,6 @@ class ThreadedEchoServer(ServerConnection):
 
 class TestConnection(unittest.TestCase):
     def test_client(self):
-        Flags.debug_dispatch = False
-        Flags.debug_thread = False
         sockets = [s.makefile('r+') for s in socket.socketpair()]
         reader = json.ParserReader(sockets[0])
         echo_server = EchoClient(sockets[1])
@@ -124,8 +122,6 @@ class TestConnection(unittest.TestCase):
         self.assertEqual(obj, return_obj)
 
     def test_server(self):
-        Flags.debug_dispatch = False
-        Flags.debug_thread = False
         for n in range(3):
             server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -148,8 +144,6 @@ class TestConnection(unittest.TestCase):
             echo_server.shutdown()
 
     def test_threaded_server(self):
-        Flags.debug_dispatch = False
-        Flags.debug_thread = False
         for n in range(3):
             server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
