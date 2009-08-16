@@ -89,17 +89,18 @@ class ThreadedClient(Thread):
 
     def dispatch(self, subject):
         self.Dispatch(parent = self, subject = subject)
-    
+
+class EchoDispatcher(object):
+    def __init__(self, subject, parent):
+        json.json(subject, parent.subject)
+        parent.subject.flush()
+
 class EchoClient(ClientConnection):
-    def dispatch(self, value):
-        json.json(value, self.subject)
-        self.subject.flush()
+    Dispatch = EchoDispatcher
 
 class ThreadedEchoClient(ClientConnection):
     class Dispatch(ThreadedClient):
-        def dispatch(self, value):
-            json.json(value, self.subject)
-            self.subject.flush()
+        Dispatch = EchoDispatcher
 
 class EchoServer(ServerConnection):
     Dispatch = EchoClient
