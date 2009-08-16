@@ -90,67 +90,82 @@ class ThreadedClient(Thread):
     def dispatch(self, subject):
         self.Dispatch(parent = self, subject = subject)
 
+class RPCClient(ClientConnection):
+    class Dispatch(ThreadedClient):
+        def dispatch(self, subject):
+            if 'method' in subject and 'id' in subject:
+                try:
+                    result = self.dispatch_request(subject)
+                    error = None
+                except Exception, e:
+                    result = None
+                    error = {'type': type(e).__name__,
+                             'args': e.args}
+                self.parent.respond(result, error, subject['id'])
+            elif 'result' in subject:
+                assert 'id' in subject
+                if subject['id'] in self.parent._recv_waiting:
+                    with self.parent._recv_waiting[subject['id']][0]:
+                        self.parent._recv_waiting[subject['id']][1] = subject
+                        self.parent._recv_waiting[subject['id']][0].notifyAll()
+                else:
+                    self.dispatch_response(subject)
+            elif 'method' in subject:
+                self.dispatch_notification(subject)
+
+        def dispatch_request(self, subject):
+            pass
+
+        def dispatch_notification(self, subject):
+            pass
+
+        def dispatch_response(self, subject):
+            # Note: Only used to results for calls that some other thread isn't waiting for
+            pass
+
+    def _init(self, *arg, **kw):
+        self._request_id = 0
+        self._send_lock = threading.Lock()
+        self._recv_waiting = {}
+        ClientConnection._init(self, *arg, **kw)
+
+    def run_parent(self):
+        # Server can call client from here...
+        pass
+
+    def request(self, method, params = []):
+        with self._send_lock:
+            self._request_id += 1
+            json.json({'method':method, 'params': params, 'id': self._request_id}, self.subject)
+            self.subject.flush()
+            return self._request_id
+
+    def respond(self, result, error, id):
+        with self._send_lock:            
+            json.json({'result':result, 'error': error, 'id': id}, self.subject)
+            self.subject.flush()
+
+    def notify(self, method, params = []):
+        with self._send_lock:            
+            json.json({'method':method, 'params': params}, self.subject)
+            self.subject.flush()
+
+    def wait_for_response(self, id):
+          self._recv_waiting[id] = [threading.Condition(), None]
+          try:
+              with self._recv_waiting[id][0]:
+                  self._recv_waiting[id][0].wait()
+                  if self._recv_waiting[id][1]['error'] is not None:
+                      raise Exception(self._recv_waiting[id][1]['error']['args'],
+                                      serialized_type = self._recv_waiting[id][1]['error']['type'])
+                  return self._recv_waiting[id][1]['result']
+          finally:
+              del self._recv_waiting[id]
+
 class RPCServer(ServerConnection):
     class Dispatch(ThreadedClient):
-        class Dispatch(ClientConnection):
-            class Dispatch(ThreadedClient):
-                def dispatch(self, subject):
-                    if 'method' in subject and 'id' in subject:
-                        try:
-                            result = self.dispatch_request(subject)
-                            error = None
-                        except Exception, e:
-                            result = None
-                            error = {'type': type(e).__name__,
-                                     'args': e.args}
-                        self.parent.respond(result, error, subject['id'])
-                    elif 'result' in subject:
-                        self._assert_in('id', subject)
-                        self._assert_in(subject['id'], self.parent._recv_waiting)
-                        with self.parent._recv_waiting[subject['id']]:
-                            self.parent._recv_waiting[subject['id']][1] = subject
-                            self.parent._recv_waiting[subject['id']][0].notifyAll()
-                    elif 'method' in subject:
-                        self.dispatch_notification(subject)
-
-                def dispatch_request(self, subject):
-                    pass
-
-                def dispatch_notification(self, subject):
-                    pass
-
-            def _init(self, *arg, **kw):
-                self._request_id = 0
-                self._send_lock = threading.Lock()
-                self._recv_waiting = {}
-                ClientConnection._init(self, *arg, **kw)
-
-            def run_parent(self):
-                # Server can call client from here...
-                pass
-
-            def request(self, method, params, id):
-                with self._send_lock:            
-                    self._request_id += 1
-                    json.json({'method':method, 'params': params, 'id': self._request_id}, self.subject)
-                    return self._request_id
-
-            def respond(self, result, error, id):
-                with self._send_lock:            
-                    json.json({'result':result, 'error': error, 'id': id}, self.subject)
-
-            def notify(self, method, params):
-                with self._send_lock:            
-                    json.json({'method':method, 'params': params}, self.subject)
-
-            def wait_for_response(self, id):
-                  self._recv_waiting[id] = [threading.Condition(), None]
-                  try:
-                      with self._recv_waiting[id]:
-                          self._recv_waiting[id].wait()
-                          return self._recv_waiting[id][1]
-                  finally:
-                      del self._recv_waiting[id]
+        class Dispatch(RPCClient):
+            pass
 
 class EchoDispatcher(object):
     def __init__(self, subject, parent):
@@ -170,6 +185,36 @@ class EchoServer(ServerConnection):
 class ThreadedEchoServer(ServerConnection):
     class Dispatch(ThreadedClient):
         Dispatch = ThreadedEchoClient
+
+class PongRPCServer(RPCServer):
+    class Dispatch(RPCServer.Dispatch):
+        class Dispatch(RPCServer.Dispatch.Dispatch):
+            class Dispatch(RPCServer.Dispatch.Dispatch.Dispatch):
+                def dispatch_request(self, subject):
+                    print "PongRPCServer: dispatch_request", subject
+                    assert subject['method'] == "ping"
+                    assert self.parent.wait_for_response(self.parent.request("pingping")) == "pingpong"
+                    print "PongRPCServer: back-pong"
+                    return "pong"
+
+class PingRPCClient(RPCClient):
+    class Dispatch(RPCClient.Dispatch):
+        def dispatch_request(self, subject):
+            print "PingClient: dispatch_request", subject
+            assert subject['method'] == "pingping"
+            return "pingpong"    
+
+def test_make_server_socket():
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    s.bind(('', 4712))
+    s.listen(1)
+    return s
+
+def test_make_client_socket():
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.connect(('localhost', 4712))
+    return s.makefile('r+')
 
 class TestConnection(unittest.TestCase):
     def test_client(self):
@@ -253,16 +298,11 @@ class TestConnection(unittest.TestCase):
 
     def test_server(self):
         for n in range(3):
-            server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            server_socket.bind(('', 4712))
-            server_socket.listen(1)
+            server_socket = test_make_server_socket()
             echo_server = EchoServer(server_socket, name="EchoServer")
 
-            client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            client_socket.connect(('localhost', 4712))
-            client_socket = client_socket.makefile('r+')
-
+            client_socket = test_make_client_socket()
+            
             obj = {'foo':1, 'bar':[1, 2]}
             json.json(obj, client_socket)
             client_socket.flush()
@@ -275,15 +315,10 @@ class TestConnection(unittest.TestCase):
 
     def test_threaded_server(self):
         for n in range(3):
-            server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            server_socket.bind(('', 4712))
-            server_socket.listen(1)
+            server_socket = test_make_server_socket()
             echo_server = ThreadedEchoServer(server_socket, name="EchoServer")
 
-            client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            client_socket.connect(('localhost', 4712))
-            client_socket = client_socket.makefile('r+')
+            client_socket = test_make_client_socket()
 
             obj = {'foo':1, 'bar':[1, 2]}
             json.json(obj, client_socket)
@@ -294,6 +329,16 @@ class TestConnection(unittest.TestCase):
 
             self.assertEqual(obj, return_obj)
             echo_server.shutdown()
+
+    def test_rpc_server(self):
+        for n in range(3):
+            server_socket = test_make_server_socket()
+            server = PongRPCServer(server_socket, name="PongServer")
+
+            client_socket = test_make_client_socket()
+            client = PingRPCClient(client_socket)
+            self.assertEqual(client.wait_for_response(client.request("ping")), "pong")
+            server.shutdown()
 
 if __name__ == "__main__":
     unittest.main()
