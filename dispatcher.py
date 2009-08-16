@@ -58,7 +58,6 @@ class ClientConnection(Connection):
 
     def read(self):
         # FIXME: How to handle shutdown here?
-        self.subject.close()
         return self.reader.read_values()
 
 class ServerConnection(Connection):
