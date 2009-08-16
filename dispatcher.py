@@ -78,8 +78,13 @@ class ServerConnection(Connection):
 class ThreadedClient(Thread):
     Dispatch = ClientConnection
 
+    def _init(self, *arg, **kw):
+        Thread._init(self, *arg, **kw)
+        self.dispatch_subject = self.subject
+        self.subject = self.parent.subject
+
     def run_thread(self):
-        self.dispatch(self.subject)
+        self.dispatch(self.dispatch_subject)
 
     def dispatch(self, subject):
         self.Dispatch(parent = self, subject = subject)
