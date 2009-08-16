@@ -127,7 +127,7 @@ class TestConnection(unittest.TestCase):
 
         sockets[0].close()
 
-        self.assertRaises(EOFError, lambda: reader.read_value())
+        self.assertRaises(ValueError, lambda: reader.read_value())
 
     def test_closed_socket(self):
         class Timeout(threading.Thread):

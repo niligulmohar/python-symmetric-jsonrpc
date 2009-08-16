@@ -60,8 +60,8 @@ class FileIterator(object):
     def next(self):
         try:
             return self.file.read(1)
-        except:
-            return StopIteration
+        except EOFError:
+            raise StopIteration()
 
 class ReIterator(object):
     def __init__(self, i):
