@@ -7,6 +7,7 @@ class Thread(threading.Thread):
     def __init__(self, *arg, **kw):
         self._init(*arg, **kw)
         self.start()
+        self.run_parent()
 
     def _init(self, subject, parent = None, *arg, **kw):
         self.subject = subject
@@ -27,6 +28,9 @@ class Thread(threading.Thread):
     def shutdown(self):
         self._shutdown = True
 
+    def run_parent(self):
+        pass
+    
     def run_thread(self, *arg, **kw):
         pass
 
@@ -87,12 +91,18 @@ class EchoClient(ClientConnection):
         json.json(value, self.subject)
         self.subject.flush()
 
+class ThreadedEchoClient(ClientConnection):
+    class Dispatch(ThreadedClient):
+        def dispatch(self, value):
+            json.json(value, self.subject)
+            self.subject.flush()
+
 class EchoServer(ServerConnection):
     Dispatch = EchoClient
 
 class ThreadedEchoServer(ServerConnection):
     class Dispatch(ThreadedClient):
-        Dispatch = EchoClient
+        Dispatch = ThreadedEchoClient
 
 class TestConnection(unittest.TestCase):
     def test_client(self):
