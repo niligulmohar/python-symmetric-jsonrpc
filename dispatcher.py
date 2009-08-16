@@ -34,6 +34,10 @@ class Thread(threading.Thread):
 class Connection(Thread):
     class Dispatch(Thread): pass
         
+    def shutdown(self):
+        self.subject.close()
+        Thread.shutdown(self)
+
     def run_thread(self):
         for value in self.read():
             if debug_dispatch: print "%s: DISPATCH: %s" % (self.getName(), value) 
@@ -77,6 +81,9 @@ class ThreadedClient(Thread):
     def run_thread(self):
         self.dispatch(self.subject)
 
+    def dispatch(self, subject):
+        self.Dispatch(parent = self, subject = subject)
+    
 class EchoClient(ClientConnection):
     def dispatch(self, value):
         json.json(value, self.subject)
@@ -143,6 +150,7 @@ class TestConnection(unittest.TestCase):
         
         self.assertEqual(obj, return_obj)
         echo_server.shutdown()
+        time.sleep(2)
 
 if __name__ == "__main__":
     unittest.main()
