@@ -58,10 +58,11 @@ class FileIterator(object):
         return self
         
     def next(self):
-        try:
-            return self.file.read(1)
-        except EOFError:
+        result = self.file.read(1)
+        if result == '':
             raise StopIteration()
+        else:
+            return result
 
 class ReIterator(object):
     def __init__(self, i):
@@ -80,9 +81,12 @@ class ReIterator(object):
         self.prefix.append(value)
 
     def peek(self):
-        if not self.prefix:
-            self.put(self.i.next())
-        return self.prefix[-1]
+        try:
+            if not self.prefix:
+                self.put(self.i.next())
+            return self.prefix[-1]
+        except StopIteration:
+            raise EOFError()
 
 class Reader(object):
     "An SAX-like recursive-descent parser for JSON."
@@ -282,10 +286,13 @@ class ParserReader(Reader):
         self._read_value()
         return self.state[-1][-1]
     def read_values(self):
-        while True:
-            self.state = [[]]
-            self._read_value()
-            yield self.state[-1][-1]
+        try:
+            while True:
+                self.state = [[]]
+                self._read_value()
+                yield self.state[-1][-1]
+        except EOFError:
+            return
 
 class DebugReader(object):
     def pair_begin(self): print '('; print self.state; return super(DebugReader, self).pair_begin()

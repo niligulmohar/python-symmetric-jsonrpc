@@ -129,6 +129,22 @@ class TestConnection(unittest.TestCase):
 
         self.assertRaises(ValueError, lambda: reader.read_value())
 
+    def test_eof(self):
+        import cStringIO
+
+        obj = {'foo':1, 'bar':[1, 2]}
+        io0 = cStringIO.StringIO()
+        json.json(obj, io0)
+        full_json_string = io0.getvalue()
+
+        for json_string, eof_error in ((full_json_string, False), (full_json_string[0:10], True), ('', True)):
+            io1 = cStringIO.StringIO(json_string)
+            reader = json.ParserReader(io1)
+            if eof_error:
+                self.assertRaises(EOFError, lambda: reader.read_value())
+            else:
+                self.assertEqual(obj, reader.read_value())
+
     def test_closed_socket(self):
         class Timeout(threading.Thread):
             def run(self1):
