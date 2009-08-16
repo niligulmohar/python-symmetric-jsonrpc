@@ -22,9 +22,9 @@ class Thread(threading.Thread):
         threading.Thread.__init__(self, *arg, **kw)
 
     def run(self, *arg, **kw):
-        if Flags.debug_thread: print "%s: BEGIN" % (self.getName(), ) 
+        if Flags.debug_thread: print "%s: BEGIN" % self.getName()
         self.run_thread(*arg, **kw)
-        if Flags.debug_thread: print "%s: END" % (self.getName(), ) 
+        if Flags.debug_thread: print "%s: END" % self.getName()
 
     def shutdown(self):
         self._shutdown = True
@@ -32,32 +32,33 @@ class Thread(threading.Thread):
 
     def run_parent(self):
         pass
-    
+
     def run_thread(self, *arg, **kw):
         pass
 
 class Connection(Thread):
     class Dispatch(Thread): pass
-        
+
     def run_thread(self):
         for value in self.read():
-            if Flags.debug_dispatch: print "%s: DISPATCH: %s" % (self.getName(), value) 
+            if Flags.debug_dispatch: print "%s: DISPATCH: %s" % (self.getName(), value)
             self.dispatch(value)
-            if Flags.debug_dispatch: print "%s: DISPATCH DONE: %s" % (self.getName(), value) 
+            if Flags.debug_dispatch: print "%s: DISPATCH DONE: %s" % (self.getName(), value)
 
     def read(self):
         pass
 
     def dispatch(self, subject):
         self.Dispatch(parent = self, subject = subject)
-    
+
 class ClientConnection(Connection):
     def _init(self, subject, *arg, **kw):
         self.reader = json.ParserReader(subject)
         Connection._init(self, subject, *arg, **kw)
-    
+
     def read(self):
         # FIXME: How to handle shutdown here?
+        self.subject.close()
         return self.reader.read_values()
 
 class ServerConnection(Connection):
@@ -120,7 +121,7 @@ class TestConnection(unittest.TestCase):
         obj = {'foo':1, 'bar':[1, 2]}
         json.json(obj, sockets[0])
         return_obj = reader.read_value()
-        
+
         self.assertEqual(obj, return_obj)
 
     def test_server(self):
