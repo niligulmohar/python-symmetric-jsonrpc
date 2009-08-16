@@ -75,6 +75,9 @@ class ThreadedClient(Thread):
     def run_thread(self):
         self.dispatch(self.subject)
 
+    def dispatch(self, subject):
+        self.Dispatch(parent = self, subject = subject)
+    
 class EchoClient(ClientConnection):
     def dispatch(self, value):
         json.json(value, self.subject)
