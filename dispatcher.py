@@ -130,10 +130,6 @@ class RPCClient(ClientConnection):
         self._recv_waiting = {}
         ClientConnection._init(self, *arg, **kw)
 
-    def run_parent(self):
-        # Server can call client from here...
-        pass
-
     def request(self, method, params = [], wait_for_response = False):
         with self._send_lock:
             self._request_id += 1
@@ -170,7 +166,9 @@ class RPCClient(ClientConnection):
 class RPCServer(ServerConnection):
     class Dispatch(ThreadedClient):
         class Dispatch(RPCClient):
-            pass
+            def run_parent(self):
+                # Server can call client from here...
+                pass
 
 class EchoDispatcher(object):
     def __init__(self, subject, parent):
