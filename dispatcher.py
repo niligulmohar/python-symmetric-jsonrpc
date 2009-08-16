@@ -1,87 +1,91 @@
 import json, threading, unittest, socket, time, select
 
 debug_dispatch = True
+debug_thread = True
 
-class Connection(threading.Thread):
-    def __init__(self, conn, *arg, **kw):
-        self.conn = conn
-        self._shutdown = False
-        threading.Thread.__init__(self, *arg, **kw)
+class Thread(threading.Thread):
+    def __init__(self, *arg, **kw):
+        self._init(*arg, **kw)
         self.start()
-          
-    def run(self):
-        if debug_dispatch: print "%s: RUN" % (self.getName(), ) 
-        for value in self.read():
-            if debug_dispatch: print "%s: DISPATCH: %s" % (self.getName(), value) 
-            self.dispatch(value)
-            if debug_dispatch: print "%s: DISPATCH DONE: %s" % (self.getName(), value) 
-        if debug_dispatch: print "%s: END" % (self.getName(), ) 
+
+    def _init(self, subject, parent = None, *arg, **kw):
+        self.subject = subject
+        self.parent = parent
+        self._shutdown = False
+        if 'name' not in kw:
+            if self.parent:
+                kw['name'] = "%s/%s" % (self.parent.getName(), type(self).__name__)
+            else:
+                kw['name'] = type(self).__name__
+        threading.Thread.__init__(self, *arg, **kw)
+
+    def run(self, *arg, **kw):
+        if debug_thread: print "%s: BEGIN" % (self.getName(), ) 
+        self.run_thread(*arg, **kw)
+        if debug_thread: print "%s: END" % (self.getName(), ) 
 
     def shutdown(self):
         self._shutdown = True
 
+    def run_thread(self, *arg, **kw):
+        pass
+
+class Connection(Thread):
+    class Dispatch(Thread): pass
+        
+    def run_thread(self):
+        for value in self.read():
+            if debug_dispatch: print "%s: DISPATCH: %s" % (self.getName(), value) 
+            self.dispatch(value)
+            if debug_dispatch: print "%s: DISPATCH DONE: %s" % (self.getName(), value) 
+
     def read(self):
         pass
 
-    def dispatch(self, value):
-        pass
+    def dispatch(self, subject):
+        self.Dispatch(parent = self, subject = subject)
     
 class ClientConnection(Connection):
-    def __init__(self, conn, *arg, **kw):
-        self.reader = json.ParserReader(conn)
-        Connection.__init__(self, conn, *arg, **kw)
+    def _init(self, subject, *arg, **kw):
+        self.reader = json.ParserReader(subject)
+        Connection._init(self, subject, *arg, **kw)
     
     def read(self):
         # FIXME: How to handle shutdown here?
         return self.reader.read_values()
 
-    def dispatch(self, value):
-        pass
-
 class ServerConnection(Connection):
-    ClientConnection = ClientConnection
+    Dispatch = ClientConnection
 
     def read(self):
         poll = select.poll()
-        poll.register(self.conn, select.POLLIN)
+        poll.register(self.subject, select.POLLIN)
 
         while True:
             status = poll.poll(100)
             if self._shutdown:
                 return
             if status:
-                yield self.conn.accept()
-        
-    def dispatch(self, (socket, address)):
-        self.ClientConnection(socket.makefile('r+'), name="%s/%s" % (self.getName(), self.ClientConnection.__name__))
+                socket, address = self.subject.accept()
+                yield socket.makefile('r+')
 
-class ThreadedClient(threading.Thread):
-    ClientConnection = ClientConnection
+class ThreadedClient(Thread):
+    Dispatch = ClientConnection
 
-    def __init__(self, conn, *arg, **kw):
-        self.conn = conn
-        threading.Thread.__init__(self, *arg, **kw)
-        self.start()
-
-    def run(self):
-        if debug_dispatch: print "%s: RUN" % (self.getName(), ) 
-        self.dispatch()
-        if debug_dispatch: print "%s: END" % (self.getName(), ) 
-
-    def dispatch(self):
-        self.ClientConnection(self.conn, name="%s/%s" % (self.getName(), self.ClientConnection.__name__))
+    def run_thread(self):
+        self.dispatch(self.subject)
 
 class EchoClient(ClientConnection):
     def dispatch(self, value):
-        json.json(value, self.conn)
-        self.conn.flush()
+        json.json(value, self.subject)
+        self.subject.flush()
 
 class EchoServer(ServerConnection):
-    ClientConnection = EchoClient
+    Dispatch = EchoClient
 
 class ThreadedEchoServer(ServerConnection):
-    class ClientConnection(ThreadedClient):
-        ClientConnection = EchoClient
+    class Dispatch(ThreadedClient):
+        Dispatch = EchoClient
 
 class TestConnection(unittest.TestCase):
     def test_client(self):
