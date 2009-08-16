@@ -90,6 +90,68 @@ class ThreadedClient(Thread):
     def dispatch(self, subject):
         self.Dispatch(parent = self, subject = subject)
 
+class RPCServer(ServerConnection):
+    class Dispatch(ThreadedClient):
+        class Dispatch(ClientConnection):
+            class Dispatch(ThreadedClient):
+                def dispatch(self, subject):
+                    if 'method' in subject and 'id' in subject:
+                        try:
+                            result = self.dispatch_request(subject)
+                            error = None
+                        except Exception, e:
+                            result = None
+                            error = {'type': type(e).__name__,
+                                     'args': e.args}
+                        self.parent.respond(result, error, subject['id'])
+                    elif 'result' in subject:
+                        self._assert_in('id', subject)
+                        self._assert_in(subject['id'], self.parent._recv_waiting)
+                        with self.parent._recv_waiting[subject['id']]:
+                            self.parent._recv_waiting[subject['id']][1] = subject
+                            self.parent._recv_waiting[subject['id']][0].notifyAll()
+                    elif 'method' in subject:
+                        self.dispatch_notification(subject)
+
+                def dispatch_request(self, subject):
+                    pass
+
+                def dispatch_notification(self, subject):
+                    pass
+
+            def _init(self, *arg, **kw):
+                self._request_id = 0
+                self._send_lock = threading.Lock()
+                self._recv_waiting = {}
+                ClientConnection._init(self, *arg, **kw)
+
+            def run_parent(self):
+                # Server can call client from here...
+                pass
+
+            def request(self, method, params, id):
+                with self._send_lock:            
+                    self._request_id += 1
+                    json.json({'method':method, 'params': params, 'id': self._request_id}, self.subject)
+                    return self._request_id
+
+            def respond(self, result, error, id):
+                with self._send_lock:            
+                    json.json({'result':result, 'error': error, 'id': id}, self.subject)
+
+            def notify(self, method, params):
+                with self._send_lock:            
+                    json.json({'method':method, 'params': params}, self.subject)
+
+            def wait_for_response(self, id):
+                  self._recv_waiting[id] = [threading.Condition(), None]
+                  try:
+                      with self._recv_waiting[id]:
+                          self._recv_waiting[id].wait()
+                          return self._recv_waiting[id][1]
+                  finally:
+                      del self._recv_waiting[id]
+
 class EchoDispatcher(object):
     def __init__(self, subject, parent):
         json.json(subject, parent.subject)
