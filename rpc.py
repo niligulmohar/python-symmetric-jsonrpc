@@ -138,7 +138,9 @@ def test_make_client_socket():
     s.connect(('localhost', 4712))
     return s.makefile('r+')
 
-class TestConnection(unittest.TestCase):
+#### Test code ####
+
+class TestRpc(unittest.TestCase):
     def test_client(self):
         sockets = [s.makefile('r+') for s in socket.socketpair()]
         reader = json.ParserReader(sockets[0])

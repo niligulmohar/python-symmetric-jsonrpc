@@ -1,5 +1,3 @@
-import threading, socket
-
 def json(obj, io):
     if isinstance(obj, unicode):
         io.write('"')
@@ -313,10 +311,15 @@ class DebugReader(object):
     def null(self): print "NULL"; print self.state; return super(DebugReader, self).null()
     def fail(self, msg): super(DebugReader, self).fail(); raise Exception(msg)
 
+
+#### Test code ####
+
+import threading
+import socket
 import unittest
 import cStringIO
 
-class TestReader(unittest.TestCase):
+class TestJson(unittest.TestCase):
     def assertReadEqual(self, str, obj):
         reader = ParserReader(str)
         read_obj = reader.read_value()
