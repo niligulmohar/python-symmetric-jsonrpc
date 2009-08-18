@@ -150,57 +150,6 @@ class TestConnection(unittest.TestCase):
 
         self.assertEqual(obj, return_obj)
 
-    def test_broken_socket(self):
-        sockets = [s.makefile('r+') for s in socket.socketpair()]
-        reader = json.ParserReader(sockets[0])
-
-        sockets[0].close()
-
-        self.assertRaises(ValueError, lambda: reader.read_value())
-
-    def test_eof(self):
-        import cStringIO
-
-        obj = {'foo':1, 'bar':[1, 2]}
-        io0 = cStringIO.StringIO()
-        json.json(obj, io0)
-        full_json_string = io0.getvalue()
-
-        for json_string, eof_error in ((full_json_string, False), (full_json_string[0:10], True), ('', True)):
-            io1 = cStringIO.StringIO(json_string)
-            reader = json.ParserReader(io1)
-            if eof_error:
-                self.assertRaises(EOFError, lambda: reader.read_value())
-            else:
-                self.assertEqual(obj, reader.read_value())
-
-    def test_closed_socket(self):
-        class Timeout(threading.Thread):
-            def run(self1):
-                import cStringIO
-
-                obj = {'foo':1, 'bar':[1, 2]}
-                io = cStringIO.StringIO()
-                json.json(obj, io)
-                full_json_string = io.getvalue()
-
-                for json_string, eof_error in ((full_json_string, False), (full_json_string[0:10], True), ('', True)):
-                    sockets = [s.makefile('r+') for s in socket.socketpair()]
-                    reader = json.ParserReader(sockets[0])
-
-                    sockets[1].write(json_string)
-                    sockets[1].close()
-                    if eof_error:
-                        self.assertRaises(EOFError, lambda: reader.read_value())
-                    else:
-                        self.assertEqual(obj, reader.read_value())
-
-        timeout = Timeout()
-        timeout.start()
-        timeout.join(3)
-        if timeout.isAlive():
-            self.fail('Reader has hung.')
-
     def no_test_return_on_closed_socket(self):
             server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
