@@ -1,4 +1,21 @@
 class Writer(object):
+    """A serializer for python values to JSON. Allowed types for
+    values to serialize are:
+
+        * None
+        * True
+        * False
+        * Integer
+        * Float
+        * String
+        * Unicode
+        * List
+        * Dict (keys must be String or Unicode)
+
+    The writer must be instantiated with a file-like object to write
+    the serialized json to as sole argument. To actually serialize
+    data, call the write_value() or write_values() methods"""
+
     def __init__(self, s):
         self.s = s
 
@@ -97,7 +114,13 @@ class ReIterator(object):
             raise EOFError()
 
 class Reader(object):
-    "An SAX-like recursive-descent parser for JSON."
+    """A SAX-like recursive-descent parser for JSON.
+
+    This class does not actually parse JSON into Python objects, it
+    only provides tokenization (just like a SAX parser for XML).
+
+    This class must be subclassed to be usefull. See ParserReader for
+    a full example."""
 
     def __init__(self, s):
         if hasattr(s, "read"):
@@ -262,6 +285,16 @@ class Reader(object):
             self._read_value()
 
 class ParserReader(Reader):
+
+    """A JSON parser that parses JSON strings read from a file-like
+    object or character iterator (for example a string) into Python
+    values.
+
+    The parser must be instantiated with the file-like object or
+    string as its sole argument. To actually parse any values, call
+    either the read_value() method, or iterate over the return value
+    of the read_values() method."""
+
     def _struct_begin(self):
         self.state.append([])
     def _struct_end(self):

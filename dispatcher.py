@@ -1,6 +1,12 @@
 import threading, select
 
 class Thread(threading.Thread):
+
+    """This class is the base class for a set of threading.Thread
+    subclasses that provides automatic start, some debugging print-out
+    for start/stop, a subject resource to manage (like a socket), and
+    possibly a child/parent relationship with another thread."""
+
     debug_thread = False
 
     def __init__(self, *arg, **kw):
@@ -35,6 +41,8 @@ class Thread(threading.Thread):
         pass
 
 class Connection(Thread):
+    """A connection manager thread base class."""
+
     debug_dispatch = False
 
     class Dispatch(Thread): pass
@@ -52,6 +60,9 @@ class Connection(Thread):
         self.Dispatch(parent = self, subject = subject)
 
 class ServerConnection(Connection):
+    """Connection manager thread handling a listening socket,
+    dispatching inbound connections."""
+
     def read(self):
         poll = select.poll()
         poll.register(self.subject, select.POLLIN)
@@ -66,6 +77,12 @@ class ServerConnection(Connection):
                 yield socket.makefile('r+')
 
 class ThreadedClient(Thread):
+    """A dispatch manager that can be used to wrap some other dispatch
+    manager to have it started and entierly run inside an extra
+    thread. This is actually useful to wrap connection managers with
+    too, to have their run_parent() run inside a separate thread
+    too. See the RPC module for a good example of this."""
+
     def _init(self, *arg, **kw):
         Thread._init(self, *arg, **kw)
         self.dispatch_subject = self.subject
