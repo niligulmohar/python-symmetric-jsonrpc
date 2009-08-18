@@ -1,6 +1,9 @@
 import json, dispatcher, threading, unittest, socket, time, select
 
 class ClientConnection(dispatcher.Connection):
+    """A connection manager for a connected socket (or similar) that
+    reads and dispatches JSON values."""
+
     def _init(self, subject, *arg, **kw):
         self.reader = json.ParserReader(subject)
         self.writer = json.Writer(subject)
@@ -11,6 +14,15 @@ class ClientConnection(dispatcher.Connection):
         return self.reader.read_values()
 
 class RPCClient(ClientConnection):
+    """A JSON RCP client connection manager. This class represents a
+    single client-server connection on both the conecting and
+    listening side. It provides methods for issuing requests and
+    sending notifications, as well as handles incoming JSON RPC
+    request, responses and notifications and dispatches them in
+    separate threads. The dispatched threads are instances of
+    RPCClient.Dispatch, and you must subclass it and override the
+    dispatch_* methods in it to handle incoming data."""
+
     class Dispatch(dispatcher.ThreadedClient):
         def dispatch(self, subject):
             if 'method' in subject and 'id' in subject:
@@ -84,6 +96,17 @@ class RPCClient(ClientConnection):
             self.subject.flush()
 
 class RPCServer(dispatcher.ServerConnection):
+    """A JSON RPC server connection manager. This class manages a
+    listening sockets and recieves and dispatches new inbound
+    connections. Each inbound connection is awarded two threads, one
+    that can call the other side if there is a need, and one that
+    handles incoming requests, responses and
+    notifications.
+
+    RPCServer.Dispatch.Dispatch is an RPCClient subclass that handles
+    incoming requests, responses and notifications. Initial calls to
+    the remote side can be done from its run_parent() method."""
+
     class Dispatch(dispatcher.ThreadedClient):
         class Dispatch(RPCClient):
             def run_parent(self):
