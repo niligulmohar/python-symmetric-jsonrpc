@@ -3,6 +3,7 @@ import json, dispatcher, threading, unittest, socket, time, select
 class ClientConnection(dispatcher.Connection):
     def _init(self, subject, *arg, **kw):
         self.reader = json.ParserReader(subject)
+        self.writer = json.Writer(subject)
         dispatcher.Connection._init(self, subject, *arg, **kw)
 
     def read(self):
@@ -55,7 +56,7 @@ class RPCClient(ClientConnection):
             request_id = self._request_id
             if wait_for_response:
                 self._recv_waiting[request_id] = {'condition':threading.Condition(), 'result': None}
-            json.json({'method':method, 'params': params, 'id': request_id}, self.subject)
+            self.writer.write_value({'method':method, 'params': params, 'id': request_id})
             self.subject.flush()
 
             if not wait_for_response:
@@ -73,13 +74,13 @@ class RPCClient(ClientConnection):
 
 
     def respond(self, result, error, id):
-        with self._send_lock:            
-            json.json({'result':result, 'error': error, 'id': id}, self.subject)
+        with self._send_lock:
+            self.writer.write_value({'result':result, 'error': error, 'id': id})
             self.subject.flush()
 
     def notify(self, method, params = []):
-        with self._send_lock:            
-            json.json({'method':method, 'params': params}, self.subject)
+        with self._send_lock:
+            self.writer.write_value({'method':method, 'params': params})
             self.subject.flush()
 
 class RPCServer(dispatcher.ServerConnection):
@@ -91,7 +92,7 @@ class RPCServer(dispatcher.ServerConnection):
 
 class EchoDispatcher(object):
     def __init__(self, subject, parent):
-        json.json(subject, parent.subject)
+        json.Writer(parent.subject).write_value(subject)
         parent.subject.flush()
 
 class EchoClient(ClientConnection):
@@ -144,10 +145,11 @@ class TestRpc(unittest.TestCase):
     def test_client(self):
         sockets = [s.makefile('r+') for s in socket.socketpair()]
         reader = json.ParserReader(sockets[0])
+        writer = json.Writer(sockets[0])
         echo_server = EchoClient(sockets[1])
 
         obj = {'foo':1, 'bar':[1, 2]}
-        json.json(obj, sockets[0])
+        writer.write_value(obj)
         return_obj = reader.read_value()
 
         self.assertEqual(obj, return_obj)
@@ -175,9 +177,10 @@ class TestRpc(unittest.TestCase):
             echo_server = EchoServer(server_socket, name="EchoServer")
 
             client_socket = test_make_client_socket()
-            
+            writer = json.Writer(client_socket)
+
             obj = {'foo':1, 'bar':[1, 2]}
-            json.json(obj, client_socket)
+            writer.write_value(obj)
             client_socket.flush()
 
             reader = json.ParserReader(client_socket)
@@ -192,9 +195,10 @@ class TestRpc(unittest.TestCase):
             echo_server = ThreadedEchoServer(server_socket, name="EchoServer")
 
             client_socket = test_make_client_socket()
+            writer = json.Writer(client_socket)
 
             obj = {'foo':1, 'bar':[1, 2]}
-            json.json(obj, client_socket)
+            writer.write_value(obj)
             client_socket.flush()
 
             reader = json.ParserReader(client_socket)

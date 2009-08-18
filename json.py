@@ -1,54 +1,62 @@
-def json(obj, io):
-    if isinstance(obj, unicode):
-        io.write('"')
-        for c in obj:
-            if c == '\b':
-                io.write(r'\b')
-            elif c == '\t':
-                io.write(r'\t')
-            elif c == '\n':
-                io.write(r'\n')
-            elif c == '\f':
-                io.write(r'\f')
-            elif c == '\r':
-                io.write(r'\r')
-            elif c == '"':
-                io.write(r'\"')
-            elif c == '\\':
-                io.write(r'\\')
-            elif c >= ' ' and c <= '~':
-                io.write(c)
-            elif c > '~':
-                io.write(r'\u%04x' % ord(c))
-            else:
-                raise Exception("Cannot encode character %x into json string" % ord(c))
-        io.write('"')
-    elif isinstance(obj, str):
-        json(obj.decode(), io)
-    elif isinstance(obj, bool):
-        io.write(obj and 'true' or 'false')
-    elif isinstance(obj, int) or isinstance(obj, float) or isinstance(obj, long):
-        io.write(repr(obj))
-    elif obj == None:
-        io.write('null')
-    elif isinstance(obj, list):
-        io.write('[')
-        for n, i in enumerate(obj):
-            if (n > 0):
-                io.write(',')
-            json(i, io)
-        io.write(']')
-    elif isinstance(obj, dict):
-        io.write('{')
-        for n, k in enumerate(obj):
-            if (n > 0):
-                io.write(',')
-            json(k, io)
-            io.write(':')
-            json(obj[k], io)
-        io.write('}')
-    else:
-        raise Exception("Cannot encode %s to json" % obj)
+class Writer(object):
+    def __init__(self, s):
+        self.s = s
+
+    def write_value(self, value):
+        if isinstance(value, unicode):
+            self.s.write('"')
+            for c in value:
+                if c == '\b':
+                    self.s.write(r'\b')
+                elif c == '\t':
+                    self.s.write(r'\t')
+                elif c == '\n':
+                    self.s.write(r'\n')
+                elif c == '\f':
+                    self.s.write(r'\f')
+                elif c == '\r':
+                    self.s.write(r'\r')
+                elif c == '"':
+                    self.s.write(r'\"')
+                elif c == '\\':
+                    self.s.write(r'\\')
+                elif c >= ' ' and c <= '~':
+                    self.s.write(c)
+                elif c > '~':
+                    self.s.write(r'\u%04x' % ord(c))
+                else:
+                    raise Exception("Cannot encode character %x into json string" % ord(c))
+            self.s.write('"')
+        elif isinstance(value, str):
+            self.write_value(value.decode())
+        elif isinstance(value, bool):
+            self.s.write(value and 'true' or 'false')
+        elif isinstance(value, int) or isinstance(value, float) or isinstance(value, long):
+            self.s.write(repr(value))
+        elif value == None:
+            self.s.write('null')
+        elif isinstance(value, list):
+            self.s.write('[')
+            for n, i in enumerate(value):
+                if (n > 0):
+                    self.s.write(',')
+                self.write_value(i)
+            self.s.write(']')
+        elif isinstance(value, dict):
+            self.s.write('{')
+            for n, k in enumerate(value):
+                if (n > 0):
+                    self.s.write(',')
+                self.write_value(k)
+                self.s.write(':')
+                self.write_value(value[k])
+            self.s.write('}')
+        else:
+            raise Exception("Cannot encode %s to json" % value)
+
+    def write_values(self, values):
+        for value in values:
+            self.write_value(value)
 
 class FileIterator(object):
     def __init__(self, file):
@@ -325,7 +333,7 @@ class TestJson(unittest.TestCase):
         read_obj = reader.read_value()
         self.assertEqual(obj, read_obj)
         io = cStringIO.StringIO()
-        json(obj, io)
+        Writer(io).write_value(obj)
         reader1 = ParserReader(io.getvalue())
         read_obj1 = reader1.read_value()
         self.assertEqual(obj, read_obj1)
@@ -382,7 +390,7 @@ class TestJson(unittest.TestCase):
 
         obj = {'foo':1, 'bar':[1, 2]}
         io0 = cStringIO.StringIO()
-        json(obj, io0)
+        Writer(io0).write_value(obj)
         full_json_string = io0.getvalue()
 
         for json_string, eof_error in ((full_json_string, False), (full_json_string[0:10], True), ('', True)):
@@ -401,7 +409,7 @@ class TestJson(unittest.TestCase):
 
                 obj = {'foo':1, 'bar':[1, 2]}
                 io = cStringIO.StringIO()
-                json(obj, io)
+                Writer(io).write_value(obj)
                 full_json_string = io.getvalue()
 
                 for json_string, eof_error in ((full_json_string, False), (full_json_string[0:10], True), ('', True)):
