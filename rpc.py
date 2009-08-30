@@ -22,7 +22,7 @@
 
 from __future__ import with_statement
 
-import json, dispatcher, threading, unittest, socket, time, select
+import json, dispatcher, threading, traceback, unittest, socket, time, select
 
 class ClientConnection(dispatcher.Connection):
     """A connection manager for a connected socket (or similar) that
@@ -68,7 +68,10 @@ class RPCClient(ClientConnection):
                     self.dispatch_response(subject)
                 
             elif 'method' in subject:
-                self.dispatch_notification(subject)
+                try:
+                    self.dispatch_notification(subject)
+                except:
+                    traceback.print_exc()
 
         def dispatch_request(self, subject):
             pass
@@ -77,7 +80,7 @@ class RPCClient(ClientConnection):
             pass
 
         def dispatch_response(self, subject):
-            # Note: Only used to results for calls that some other thread isn't waiting for
+            """Note: Only used to results for calls that some other thread isn't waiting for"""
             pass
 
     def _init(self, *arg, **kw):
@@ -134,8 +137,17 @@ class RPCServer(dispatcher.ServerConnection):
     class Dispatch(dispatcher.ThreadedClient):
         class Dispatch(RPCClient):
             def run_parent(self):
-                # Server can call client from here...
+                """Server can call client from here..."""
                 pass
+
+class RPCP2PNode(dispatcher.ThreadedClient):
+    class Dispatch(RPCServer):
+        def run_parent(self):
+            """Server can make connections from here by calling self.Dispatch()"""
+            pass
+
+
+################################ Unit-test code ################################
 
 class EchoDispatcher(object):
     def __init__(self, subject, parent):
@@ -156,6 +168,13 @@ class ThreadedEchoServer(dispatcher.ServerConnection):
     class Dispatch(dispatcher.ThreadedClient):
         Dispatch = ThreadedEchoClient
 
+class PingRPCClient(RPCClient):
+    class Dispatch(RPCClient.Dispatch):
+        def dispatch_request(self, subject):
+            print "PingClient: dispatch_request", subject
+            assert subject['method'] == "pingping"
+            return "pingpong"    
+
 class PongRPCServer(RPCServer):
     class Dispatch(RPCServer.Dispatch):
         class Dispatch(RPCServer.Dispatch.Dispatch):
@@ -167,12 +186,25 @@ class PongRPCServer(RPCServer):
                     print "PongRPCServer: back-pong"
                     return "pong"
 
-class PingRPCClient(RPCClient):
-    class Dispatch(RPCClient.Dispatch):
-        def dispatch_request(self, subject):
-            print "PingClient: dispatch_request", subject
-            assert subject['method'] == "pingping"
-            return "pingpong"    
+class PongRPCP2PServer(RPCP2PNode):
+    class Dispatch(RPCP2PNode.Dispatch):
+        class Dispatch(RPCP2PNode.Dispatch.Dispatch):
+            class Dispatch(RPCP2PNode.Dispatch.Dispatch.Dispatch):
+                class Dispatch(RPCP2PNode.Dispatch.Dispatch.Dispatch.Dispatch):
+                    def dispatch_request(self, subject):
+                        print "PongRPCP2PServer: dispatch_request", subject
+                        if subject['method'] == "ping":
+                            assert self.parent.request("pingping", wait_for_response=True) == "pingpong"
+                            print "PongRPCServer: back-pong"
+                            return "pong"
+                        elif subject['method'] == "pingping":
+                            print "PingClient: dispatch_request", subject
+                            return "pingpong"
+                        else:
+                            assert False
+        def run_parent(self):
+            client = self.Dispatch.Dispatch(test_make_client_socket())
+            self.parent.parent['result'] = client.request("ping", wait_for_response=True) == "pong"
 
 def test_make_server_socket():
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -185,8 +217,6 @@ def test_make_client_socket():
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.connect(('localhost', 4712))
     return s.makefile('r+')
-
-#### Test code ####
 
 class TestRpc(unittest.TestCase):
     def test_client(self):
@@ -262,6 +292,15 @@ class TestRpc(unittest.TestCase):
             client_socket = test_make_client_socket()
             client = PingRPCClient(client_socket)
             self.assertEqual(client.request("ping", wait_for_response=True), "pong")
+            server.shutdown()
+
+    def test_rpc_p2p_server(self):
+        #for n in range(3):
+            server_socket = test_make_server_socket()
+            res = {}
+            server = PongRPCP2PServer(server_socket, res, name="PongServer")
+            server.join()
+            assert res['result']
             server.shutdown()
 
 if __name__ == "__main__":

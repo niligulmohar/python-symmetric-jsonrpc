@@ -110,7 +110,7 @@ class ThreadedClient(Thread):
     def _init(self, *arg, **kw):
         Thread._init(self, *arg, **kw)
         self.dispatch_subject = self.subject
-        self.subject = self.parent.subject
+        self.subject = getattr(self.parent, "subject", None)
 
     def run_thread(self):
         self.dispatch(self.dispatch_subject)
