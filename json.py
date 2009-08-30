@@ -1,3 +1,5 @@
+import select
+
 class Writer(object):
     """A serializer for python values to JSON. Allowed types for
     values to serialize are:
@@ -76,26 +78,46 @@ class Writer(object):
             self.write_value(value)
 
 class FileIterator(object):
+    poll_timeout = 1000
+    
     def __init__(self, file):
         self.file = file
+        self.poll = select.poll()
+        self.poll.register(file, select.POLLIN | select.POLLPRI | select.POLLERR | select.POLLHUP | select.POLLNVAL)
+        self.closed = False
 
     def __iter__(self):
         return self
-        
+
+    def close(self):
+        self.closed = True
+        self.file.close()
+    
     def next(self):
+        import sys
+        res = []
+        while not res and not self.closed:
+            res = self.poll.poll(self.poll_timeout)
+        if self.closed:
+            raise StopIteration
+
         result = self.file.read(1)
         if result == '':
-            raise StopIteration()
+            raise StopIteration
         else:
             return result
 
 class ReIterator(object):
     def __init__(self, i):
         self.prefix = [] # In reverse order!
+        self.closable = i
         self.i = iter(i)
 
     def __iter__(self):
         return self
+
+    def close(self):
+        self.closable.close()
 
     def next(self):
         if self.prefix:
@@ -125,7 +147,7 @@ class Reader(object):
     def __init__(self, s):
         if hasattr(s, "read"):
             s = FileIterator(s)
-        self.s = ReIterator(iter(s))
+        self.s = ReIterator(s)
 
     # Override these in a subclass to actually do something with the
     # parsed data
@@ -277,6 +299,9 @@ class Reader(object):
         elif c == 'n': return self._read_null()
         else: return self._read_number()
 
+    def close(self):
+        self.s.close()
+
     def read_value(self):
         return self._read_value()
 
@@ -358,16 +383,17 @@ class DebugReader(object):
 import threading
 import socket
 import unittest
-import cStringIO
+import tempfile
 
 class TestJson(unittest.TestCase):
     def assertReadEqual(self, str, obj):
         reader = ParserReader(str)
         read_obj = reader.read_value()
         self.assertEqual(obj, read_obj)
-        io = cStringIO.StringIO()
+        io = tempfile.TemporaryFile()
         Writer(io).write_value(obj)
-        reader1 = ParserReader(io.getvalue())
+        io.seek(0)
+        reader1 = ParserReader(io)
         read_obj1 = reader1.read_value()
         self.assertEqual(obj, read_obj1)
     def test_read_value(self):
@@ -407,9 +433,9 @@ class TestJson(unittest.TestCase):
         for i, r in enumerate(reader.read_values()):
             self.assertEqual(r, values[i])
     def test_encode_invalid_control_character(self):
-        self.assertRaises(Exception, lambda: json('\x00', cStringIO.StringIO()))
+        self.assertRaises(Exception, lambda: json('\x00', tempfile.TemporaryFile()))
     def test_encode_invalid_object(self):
-        self.assertRaises(Exception, lambda: json(Reader(""), cStringIO.StringIO()))
+        self.assertRaises(Exception, lambda: json(Reader(""), tempfile.TemporaryFile()))
 
 
     def test_broken_socket(self):
@@ -422,12 +448,15 @@ class TestJson(unittest.TestCase):
         import cStringIO
 
         obj = {'foo':1, 'bar':[1, 2]}
-        io0 = cStringIO.StringIO()
+        io0 = tempfile.TemporaryFile()
         Writer(io0).write_value(obj)
-        full_json_string = io0.getvalue()
+        io0.seek(0)
+        full_json_string = io0.read()
 
         for json_string, eof_error in ((full_json_string, False), (full_json_string[0:10], True), ('', True)):
-            io1 = cStringIO.StringIO(json_string)
+            io1 = tempfile.TemporaryFile()
+            io1.write(json_string)
+            io1.seek(0)
             reader = ParserReader(io1)
             if eof_error:
                 self.assertRaises(EOFError, lambda: reader.read_value())
@@ -438,12 +467,11 @@ class TestJson(unittest.TestCase):
     def test_closed_socket(self):
         class Timeout(threading.Thread):
             def run(self1):
-                import cStringIO
-
                 obj = {'foo':1, 'bar':[1, 2]}
-                io = cStringIO.StringIO()
+                io = tempfile.TemporaryFile()
                 Writer(io).write_value(obj)
-                full_json_string = io.getvalue()
+                io.seek(0)
+                full_json_string = io.read()
 
                 for json_string, eof_error in ((full_json_string, False), (full_json_string[0:10], True), ('', True)):
                     sockets = [s.makefile('r+') for s in socket.socketpair()]
