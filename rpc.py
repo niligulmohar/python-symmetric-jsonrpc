@@ -216,11 +216,17 @@ def test_make_server_socket():
 def test_make_client_socket():
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.connect(('localhost', 4712))
-    return s.makefile('r+')
+    f = s.makefile('r+')
+    s.close()
+    return f
 
 class TestRpc(unittest.TestCase):
     def test_client(self):
-        sockets = [s.makefile('r+') for s in socket.socketpair()]
+        sockets = []
+        for s in socket.socketpair():
+            f = s.makefile('r+')
+            s.close()
+            sockets.append(f)
         reader = json.ParserReader(sockets[0])
         writer = json.Writer(sockets[0])
         echo_server = EchoClient(sockets[1])
@@ -240,11 +246,12 @@ class TestRpc(unittest.TestCase):
 
             client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             client_socket.connect(('localhost', 4712))
-            client_socket = client_socket.makefile('r+')
+            client_file = client_socket.makefile('r+')
+            client_socket.close()
 
             print json_string
-            client_socket.write(json_string)
-            client_socket.close()
+            client_file.write(json_string)
+            client_file.close()
 
             echo_server.shutdown()
 

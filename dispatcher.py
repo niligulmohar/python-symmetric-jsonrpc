@@ -98,7 +98,9 @@ class ServerConnection(Connection):
                 return
             if status:
                 socket, address = self.subject.accept()
-                yield socket.makefile('r+')
+                file = socket.makefile('r+')
+                socket.close()
+                yield file
 
 class ThreadedClient(Thread):
     """A dispatch manager that can be used to wrap some other dispatch
