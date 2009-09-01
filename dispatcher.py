@@ -82,7 +82,7 @@ class Thread(threading.Thread):
 class Connection(Thread):
     """A connection manager thread base class."""
 
-    debug_dispatch = True
+    debug_dispatch = False
 
     class Dispatch(Thread): pass
 
@@ -113,9 +113,7 @@ class ServerConnection(Connection):
                 return
             if status:
                 socket, address = self.subject.accept()
-                file = socket.makefile('r+')
-                socket.close()
-                yield file
+                yield socket
 
 class ThreadedClient(Thread):
     """A dispatch manager that can be used to wrap some other dispatch

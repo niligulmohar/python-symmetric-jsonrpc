@@ -21,7 +21,7 @@ class WriterWrapper(object):
 
     def close(self):
         self.closed = True
-        self.file.close()
+        self.f.close()
 
     def write(self, s):
         self._wait()

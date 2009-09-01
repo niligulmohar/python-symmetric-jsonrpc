@@ -21,6 +21,9 @@ class Writer(object):
     def __init__(self, s):
         self.s = wrappers.WriterWrapper(s)
 
+    def close(self):
+        self.s.close()
+
     def write_value(self, value):
         if isinstance(value, unicode):
             self.s.write('"')
@@ -379,7 +382,7 @@ class TestJson(unittest.TestCase):
 
 
     def test_broken_socket(self):
-        sockets = [s.makefile('r+') for s in socket.socketpair()]
+        sockets = socket.socketpair()
         reader = ParserReader(sockets[0])
         sockets[0].close()
         self.assertRaises(ValueError, lambda: reader.read_value())
