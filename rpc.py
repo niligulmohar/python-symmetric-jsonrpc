@@ -289,13 +289,18 @@ class TestRpc(unittest.TestCase):
             self.assertEqual(client.request("ping", wait_for_response=True), "pong")
             server.shutdown()
 
-    def no_test_rpc_p2p_server(self):
+    def test_rpc_p2p_server(self):
 #        for n in range(3):
             server_socket = test_make_server_socket()
             res = {}
             server = PongRPCP2PServer(server_socket, res, name="PongServer")
+            for x in xrange(0, 4):
+                if 'result' in res:
+                    break
+                time.sleep(1)
+            assert 'result' in res and res['result']
+            
             server.shutdown()
-            assert res['result']
-
+            
 if __name__ == "__main__":
     unittest.main()
