@@ -152,54 +152,54 @@ class RPCP2PNode(dispatcher.ThreadedClient):
 
 debug_tests = False
 
-class EchoDispatcher(object):
+class TestEchoDispatcher(object):
     def __init__(self, subject, parent):
         if not hasattr(parent, "writer"):
             parent = parent.parent
         parent.writer.write_value(subject)
 
-class EchoClient(ClientConnection):
-    Request = EchoDispatcher
+class TestEchoClient(ClientConnection):
+    Request = TestEchoDispatcher
 
-class ThreadedEchoClient(ClientConnection):
+class TestThreadedEchoClient(ClientConnection):
     class Request(dispatcher.ThreadedClient):
-        Thread = EchoDispatcher
+        Thread = TestEchoDispatcher
 
-class EchoServer(dispatcher.ServerConnection):
-    InboundConnection = EchoClient
+class TestEchoServer(dispatcher.ServerConnection):
+    InboundConnection = TestEchoClient
 
-class ThreadedEchoServer(dispatcher.ServerConnection):
+class TestThreadedEchoServer(dispatcher.ServerConnection):
     class InboundConnection(dispatcher.ThreadedClient):
-        Thread = ThreadedEchoClient
+        Thread = TestThreadedEchoClient
 
-class PingRPCClient(RPCClient):
+class TestPingRPCClient(RPCClient):
     class Request(RPCClient.Request):
         def dispatch_request(self, subject):
             if debug_tests: print "PingClient: dispatch_request", subject
             assert subject['method'] == "pingping"
             return "pingpong"    
 
-class PongRPCServer(RPCServer):
+class TestPongRPCServer(RPCServer):
     class InboundConnection(RPCServer.InboundConnection):
         class Thread(RPCServer.InboundConnection.Thread):
             class Request(RPCServer.InboundConnection.Thread.Request):
                 def dispatch_request(self, subject):
-                    if debug_tests: print "PongRPCServer: dispatch_request", subject
+                    if debug_tests: print "TestPongRPCServer: dispatch_request", subject
                     assert subject['method'] == "ping"
                     assert self.parent.request("pingping", wait_for_response=True) == "pingpong"
-                    if debug_tests: print "PongRPCServer: back-pong"
+                    if debug_tests: print "TestPongRPCServer: back-pong"
                     return "pong"
 
-class PongRPCP2PServer(RPCP2PNode):
+class TestPongRPCP2PServer(RPCP2PNode):
     class Thread(RPCP2PNode.Thread):
         class InboundConnection(RPCP2PNode.Thread.InboundConnection):
             class Thread(RPCP2PNode.Thread.InboundConnection.Thread):
                 class Request(RPCP2PNode.Thread.InboundConnection.Thread.Request):
                     def dispatch_request(self, subject):
-                        if debug_tests: print "PongRPCP2PServer: dispatch_request", subject
+                        if debug_tests: print "TestPongRPCP2PServer: dispatch_request", subject
                         if subject['method'] == "ping":
                             assert self.parent.request("pingping", wait_for_response=True) == "pingpong"
-                            if debug_tests: print "PongRPCServer: back-pong"
+                            if debug_tests: print "TestPongRPCServer: back-pong"
                             return "pong"
                         elif subject['method'] == "pingping":
                             if debug_tests: print "PingClient: dispatch_request", subject
@@ -225,7 +225,7 @@ def test_make_client_socket():
 class TestRpc(unittest.TestCase):
     def test_client(self):
         sockets = socket.socketpair()
-        echo_server = EchoClient(sockets[1])
+        echo_server = TestEchoClient(sockets[1])
 
         reader = json.ParserReader(sockets[0])
         writer = json.Writer(sockets[0])
@@ -237,7 +237,7 @@ class TestRpc(unittest.TestCase):
 
     def test_return_on_closed_socket(self):
         server_socket = test_make_server_socket()
-        echo_server = EchoServer(server_socket, name="EchoServer")
+        echo_server = TestEchoServer(server_socket, name="TestEchoServer")
 
         client_socket = test_make_client_socket()
         writer = json.Writer(client_socket)
@@ -249,7 +249,7 @@ class TestRpc(unittest.TestCase):
     def test_server(self):
 #        for n in range(3):
             server_socket = test_make_server_socket()
-            echo_server = EchoServer(server_socket, name="EchoServer")
+            echo_server = TestEchoServer(server_socket, name="TestEchoServer")
 
             client_socket = test_make_client_socket()
             reader = json.ParserReader(client_socket)
@@ -265,7 +265,7 @@ class TestRpc(unittest.TestCase):
     def test_threaded_server(self):
         for n in range(3):
             server_socket = test_make_server_socket()
-            echo_server = ThreadedEchoServer(server_socket, name="EchoServer")
+            echo_server = TestThreadedEchoServer(server_socket, name="TestEchoServer")
 
             client_socket = test_make_client_socket()
             writer = json.Writer(client_socket)
@@ -282,18 +282,18 @@ class TestRpc(unittest.TestCase):
     def test_rpc_server(self):
         for n in range(3):
             server_socket = test_make_server_socket()
-            server = PongRPCServer(server_socket, name="PongServer")
+            server = TestPongRPCServer(server_socket, name="PongServer")
 
             client_socket = test_make_client_socket()
-            client = PingRPCClient(client_socket)
+            client = TestPingRPCClient(client_socket)
             self.assertEqual(client.request("ping", wait_for_response=True), "pong")
             server.shutdown()
 
     def test_rpc_p2p_server(self):
-#        for n in range(3):
+        for n in range(3):
             server_socket = test_make_server_socket()
             res = {}
-            server = PongRPCP2PServer(server_socket, res, name="PongServer")
+            server = TestPongRPCP2PServer(server_socket, res, name="PongServer")
             for x in xrange(0, 4):
                 if 'result' in res:
                     break
