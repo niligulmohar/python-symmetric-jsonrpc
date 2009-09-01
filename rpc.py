@@ -51,7 +51,7 @@ class RPCClient(ClientConnection):
     RPCClient.Dispatch, and you must subclass it and override the
     dispatch_* methods in it to handle incoming data."""
 
-    class Dispatch(dispatcher.ThreadedClient):
+    class Request(dispatcher.ThreadedClient):
         def dispatch(self, subject):
             if 'method' in subject and 'id' in subject:
                 try:
@@ -135,14 +135,14 @@ class RPCServer(dispatcher.ServerConnection):
     incoming requests, responses and notifications. Initial calls to
     the remote side can be done from its run_parent() method."""
 
-    class Dispatch(dispatcher.ThreadedClient):
-        class Dispatch(RPCClient):
+    class InboundConnection(dispatcher.ThreadedClient):
+        class Thread(RPCClient):
             def run_parent(self):
                 """Server can call client from here..."""
                 pass
 
 class RPCP2PNode(dispatcher.ThreadedClient):
-    class Dispatch(RPCServer):
+    class Thread(RPCServer):
         def run_parent(self):
             """Server can make connections from here by calling self.Dispatch()"""
             pass
@@ -159,30 +159,30 @@ class EchoDispatcher(object):
         parent.writer.write_value(subject)
 
 class EchoClient(ClientConnection):
-    Dispatch = EchoDispatcher
+    Request = EchoDispatcher
 
 class ThreadedEchoClient(ClientConnection):
-    class Dispatch(dispatcher.ThreadedClient):
-        Dispatch = EchoDispatcher
+    class Request(dispatcher.ThreadedClient):
+        Thread = EchoDispatcher
 
 class EchoServer(dispatcher.ServerConnection):
-    Dispatch = EchoClient
+    InboundConnection = EchoClient
 
 class ThreadedEchoServer(dispatcher.ServerConnection):
-    class Dispatch(dispatcher.ThreadedClient):
-        Dispatch = ThreadedEchoClient
+    class InboundConnection(dispatcher.ThreadedClient):
+        Thread = ThreadedEchoClient
 
 class PingRPCClient(RPCClient):
-    class Dispatch(RPCClient.Dispatch):
+    class Request(RPCClient.Request):
         def dispatch_request(self, subject):
             if debug_tests: print "PingClient: dispatch_request", subject
             assert subject['method'] == "pingping"
             return "pingpong"    
 
 class PongRPCServer(RPCServer):
-    class Dispatch(RPCServer.Dispatch):
-        class Dispatch(RPCServer.Dispatch.Dispatch):
-            class Dispatch(RPCServer.Dispatch.Dispatch.Dispatch):
+    class InboundConnection(RPCServer.InboundConnection):
+        class Thread(RPCServer.InboundConnection.Thread):
+            class Request(RPCServer.InboundConnection.Thread.Request):
                 def dispatch_request(self, subject):
                     if debug_tests: print "PongRPCServer: dispatch_request", subject
                     assert subject['method'] == "ping"
@@ -191,10 +191,10 @@ class PongRPCServer(RPCServer):
                     return "pong"
 
 class PongRPCP2PServer(RPCP2PNode):
-    class Dispatch(RPCP2PNode.Dispatch):
-        class Dispatch(RPCP2PNode.Dispatch.Dispatch):
-            class Dispatch(RPCP2PNode.Dispatch.Dispatch.Dispatch):
-                class Dispatch(RPCP2PNode.Dispatch.Dispatch.Dispatch.Dispatch):
+    class Thread(RPCP2PNode.Thread):
+        class InboundConnection(RPCP2PNode.Thread.InboundConnection):
+            class Thread(RPCP2PNode.Thread.InboundConnection.Thread):
+                class Request(RPCP2PNode.Thread.InboundConnection.Thread.Request):
                     def dispatch_request(self, subject):
                         if debug_tests: print "PongRPCP2PServer: dispatch_request", subject
                         if subject['method'] == "ping":
@@ -207,7 +207,7 @@ class PongRPCP2PServer(RPCP2PNode):
                         else:
                             assert False
         def run_parent(self):
-            client = self.Dispatch.Dispatch(test_make_client_socket())
+            client = self.InboundConnection.Thread(test_make_client_socket())
             self.parent.parent['result'] = client.request("ping", wait_for_response=True) == "pong"
 
 def test_make_server_socket():

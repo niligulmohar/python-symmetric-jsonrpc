@@ -30,10 +30,10 @@ Example usage that illustrates the symmetricity of the library:
 #### Server.py ####
 import symmetricjsonrpc
 
-class PongRPCServer(symmetricjsonrpc.RPCServer):
-    class Dispatch(symmetricjsonrpc.RPCServer.Dispatch):
-        class Dispatch(symmetricjsonrpc.RPCServer.Dispatch.Dispatch):
-            class Dispatch(symmetricjsonrpc.RPCServer.Dispatch.Dispatch.Dispatch):
+class PongRPCServer(RPCServer):
+    class InboundConnection(RPCServer.InboundConnection):
+        class Thread(RPCServer.InboundConnection.Thread):
+            class Request(RPCServer.InboundConnection.Thread.Request):
                 def dispatch_request(self, subject):
                     assert subject['method'] == "ping"
                     # Call the client back
@@ -46,8 +46,10 @@ s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 s.bind(('', 4712))
 s.listen(1)
+
 # Create a server thread handling incoming connections
 server = PongRPCServer(s, name="PongServer")
+
 # Wait for the server to stop serving clients - generally never
 server.join()
 
@@ -55,8 +57,8 @@ server.join()
 #### Client.py ####
 import symmetricjsonrpc
 
-class PingRPCClient(symmetricjsonrpc.RPCClient):
-    class Dispatch(symmetricjsonrpc.RPCClient.Dispatch):
+class PingRPCClient(RPCClient):
+    class Request(RPCClient.Request):
         def dispatch_request(self, subject):
             # Handle callbacks from the server
             assert subject['method'] == "pingping"
@@ -65,7 +67,9 @@ class PingRPCClient(symmetricjsonrpc.RPCClient):
 # Set up a TCP socket and connect to the server
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 s.connect(('localhost', 4712))
+
 # Create a client thread handling for incoming requests
-client = PingRPCClient(s.makefile('r+'))
+client = PingRPCClient(s)
+
 # Call a method on the server
-self.assertEqual(client.request("ping", wait_for_response=True), "pong")
+assert client.request("ping", wait_for_response=True) == "pong"

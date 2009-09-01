@@ -84,7 +84,7 @@ class Connection(Thread):
 
     debug_dispatch = False
 
-    class Dispatch(Thread): pass
+    _dispatcher_class = "Request"
 
     def run_thread(self):
         for value in self.read():
@@ -96,11 +96,13 @@ class Connection(Thread):
         pass
 
     def dispatch(self, subject):
-        self.Dispatch(parent = self, subject = subject)
+        getattr(self, self._dispatcher_class)(parent = self, subject = subject)
 
 class ServerConnection(Connection):
     """Connection manager thread handling a listening socket,
     dispatching inbound connections."""
+
+    _dispatcher_class = "InboundConnection"
 
     def read(self):
         poll = select.poll()
@@ -122,6 +124,8 @@ class ThreadedClient(Thread):
     too, to have their run_parent() run inside a separate thread
     too. See the RPC module for a good example of this."""
 
+    _dispatcher_class = "Thread"
+
     def _init(self, *arg, **kw):
         Thread._init(self, *arg, **kw)
         self.dispatch_subject = self.subject
@@ -131,4 +135,4 @@ class ThreadedClient(Thread):
         self.dispatch(self.dispatch_subject)
 
     def dispatch(self, subject):
-        self.Dispatch(parent = self, subject = subject)
+        getattr(self, self._dispatcher_class)(parent = self, subject = subject)
