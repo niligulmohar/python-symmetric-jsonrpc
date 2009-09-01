@@ -39,8 +39,11 @@ class Thread(threading.Thread):
         self.run_parent()
 
     def _init(self, subject, parent = None, *arg, **kw):
+        self.children = []
         self.subject = subject
         self.parent = parent
+        if hasattr(self.parent, "children"):
+            self.parent.children.append(self)
         self._shutdown = False
         if 'name' not in kw:
             if self.parent:
@@ -49,14 +52,26 @@ class Thread(threading.Thread):
                 kw['name'] = type(self).__name__
         threading.Thread.__init__(self, *arg, **kw)
 
+    def _exit(self):
+        for child in list(self.children):
+            child.join()
+        if hasattr(self.parent, "children"):
+            self.parent.children.remove(self)
+
     def run(self, *arg, **kw):
         if self.debug_thread: print "%s: BEGIN" % self.getName()
         self.run_thread(*arg, **kw)
+        if self.debug_thread: print "%s: TEARDOWN: %s" % (self.getName(), ', '.join(child.getName() for child in self.children))
+        self._exit()
         if self.debug_thread: print "%s: END" % self.getName()
 
     def shutdown(self):
+        if self.debug_thread: print "%s: shutdown: %s" % (threading.currentThread().getName(), self.getName(),)
+        for child in list(self.children):
+            child.shutdown()
         self._shutdown = True
         self.join()
+        if self.debug_thread: print "%s: shutdown done: %s" % (threading.currentThread().getName(), self.getName(),)
 
     def run_parent(self):
         pass
@@ -67,7 +82,7 @@ class Thread(threading.Thread):
 class Connection(Thread):
     """A connection manager thread base class."""
 
-    debug_dispatch = False
+    debug_dispatch = True
 
     class Dispatch(Thread): pass
 

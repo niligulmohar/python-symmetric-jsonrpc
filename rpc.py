@@ -33,8 +33,11 @@ class ClientConnection(dispatcher.Connection):
         self.writer = json.Writer(subject)
         dispatcher.Connection._init(self, subject, *arg, **kw)
 
+    def shutdown(self):
+        self.reader.close()
+        dispatcher.Connection.shutdown(self)
+
     def read(self):
-        # FIXME: How to handle shutdown here?
         return self.reader.read_values()
 
 class RPCClient(ClientConnection):
@@ -233,8 +236,10 @@ class TestRpc(unittest.TestCase):
 
         obj = {'foo':1, 'bar':[1, 2]}
         writer.write_value(obj)
+        sockets[0].flush()
+        print "READ"
         return_obj = reader.read_value()
-
+        print "DONE"
         self.assertEqual(obj, return_obj)
 
     def no_test_return_on_closed_socket(self):
@@ -249,9 +254,8 @@ class TestRpc(unittest.TestCase):
             client_file = client_socket.makefile('r+')
             client_socket.close()
 
-            print json_string
-            client_file.write(json_string)
-            client_file.close()
+            client_socket.write("{'foo':1, 'bar':2}")
+            client_socket.close()
 
             echo_server.shutdown()
 
@@ -299,16 +303,16 @@ class TestRpc(unittest.TestCase):
             client_socket = test_make_client_socket()
             client = PingRPCClient(client_socket)
             self.assertEqual(client.request("ping", wait_for_response=True), "pong")
+            print "DONE"
             server.shutdown()
 
     def test_rpc_p2p_server(self):
-        #for n in range(3):
+#        for n in range(3):
             server_socket = test_make_server_socket()
             res = {}
             server = PongRPCP2PServer(server_socket, res, name="PongServer")
-            server.join()
-            assert res['result']
             server.shutdown()
+            assert res['result']
 
 if __name__ == "__main__":
     unittest.main()
