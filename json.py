@@ -1,4 +1,4 @@
-import select
+import wrappers
 
 class Writer(object):
     """A serializer for python values to JSON. Allowed types for
@@ -19,7 +19,7 @@ class Writer(object):
     data, call the write_value() or write_values() methods"""
 
     def __init__(self, s):
-        self.s = s
+        self.s = wrappers.WriterWrapper(s)
 
     def write_value(self, value):
         if isinstance(value, unicode):
@@ -77,64 +77,6 @@ class Writer(object):
         for value in values:
             self.write_value(value)
 
-class FileIterator(object):
-    poll_timeout = 1000
-    
-    def __init__(self, file):
-        self.file = file
-        self.poll = select.poll()
-        self.poll.register(file, select.POLLIN | select.POLLPRI | select.POLLERR | select.POLLHUP | select.POLLNVAL)
-        self.closed = False
-
-    def __iter__(self):
-        return self
-
-    def close(self):
-        self.closed = True
-        self.file.close()
-    
-    def next(self):
-        import sys
-        res = []
-        while not res and not self.closed:
-            res = self.poll.poll(self.poll_timeout)
-        if self.closed:
-            raise StopIteration
-
-        result = self.file.read(1)
-        if result == '':
-            raise StopIteration
-        else:
-            return result
-
-class ReIterator(object):
-    def __init__(self, i):
-        self.prefix = [] # In reverse order!
-        self.closable = i
-        self.i = iter(i)
-
-    def __iter__(self):
-        return self
-
-    def close(self):
-        self.closable.close()
-
-    def next(self):
-        if self.prefix:
-            return self.prefix.pop()
-        return self.i.next()
-
-    def put(self, value):
-        self.prefix.append(value)
-
-    def peek(self):
-        try:
-            if not self.prefix:
-                self.put(self.i.next())
-            return self.prefix[-1]
-        except StopIteration:
-            raise EOFError()
-
 class Reader(object):
     """A SAX-like recursive-descent parser for JSON.
 
@@ -145,9 +87,7 @@ class Reader(object):
     a full example."""
 
     def __init__(self, s):
-        if hasattr(s, "read"):
-            s = FileIterator(s)
-        self.s = ReIterator(s)
+        self.s = wrappers.ReIterator(wrappers.ReaderWrapper(s))
 
     # Override these in a subclass to actually do something with the
     # parsed data
@@ -474,10 +414,11 @@ class TestJson(unittest.TestCase):
                 full_json_string = io.read()
 
                 for json_string, eof_error in ((full_json_string, False), (full_json_string[0:10], True), ('', True)):
-                    sockets = [s.makefile('r+') for s in socket.socketpair()]
+                    sockets = socket.socketpair()
                     reader = ParserReader(sockets[0])
 
-                    sockets[1].write(json_string)
+                    for c in json_string:
+                        while not sockets[1].send(c): pass
                     sockets[1].close()
                     if eof_error:
                         self.assertRaises(EOFError, lambda: reader.read_value())
