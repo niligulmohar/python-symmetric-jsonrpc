@@ -60,7 +60,7 @@ class RPCClient(ClientConnection):
                 except Exception, e:
                     result = None
                     error = {'type': type(e).__name__,
-                             'args': e.args}
+                             'args': list(e.args)}
                 self.parent.respond(result, error, subject['id'])
             elif 'result' in subject:
                 assert 'id' in subject
@@ -108,8 +108,9 @@ class RPCClient(ClientConnection):
             with self._recv_waiting[request_id]['condition']:
                 self._recv_waiting[request_id]['condition'].wait()
                 if self._recv_waiting[request_id]['result']['error'] is not None:
-                    raise Exception(self._recv_waiting[request_id]['result']['error']['args'],
-                                    serialized_type = self._recv_waiting[request_id]['result']['error']['type'])
+                    exc = Exception(*self._recv_waiting[request_id]['result']['error']['args'])
+                    exc.serialized_type = self._recv_waiting[request_id]['result']['error']['type']
+                    raise exc
                 return self._recv_waiting[request_id]['result']['result']
         finally:
             del self._recv_waiting[request_id]
@@ -122,6 +123,11 @@ class RPCClient(ClientConnection):
     def notify(self, method, params = []):
         with self._send_lock:
             self.writer.write_value({'method':method, 'params': params})
+
+    def __getattr__(self, name):
+        def rpc_wrapper(*arg):
+            return self.request(name, list(arg), wait_for_response=True)
+        return rpc_wrapper
 
 class RPCServer(dispatcher.ServerConnection):
     """A JSON RPC server connection manager. This class manages a
@@ -247,7 +253,7 @@ class TestRpc(unittest.TestCase):
         echo_server.shutdown()
 
     def test_server(self):
-#        for n in range(3):
+        for n in range(3):
             server_socket = test_make_server_socket()
             echo_server = TestEchoServer(server_socket, name="TestEchoServer")
 
@@ -287,6 +293,7 @@ class TestRpc(unittest.TestCase):
             client_socket = test_make_client_socket()
             client = TestPingRPCClient(client_socket)
             self.assertEqual(client.request("ping", wait_for_response=True), "pong")
+            self.assertEqual(client.ping(), "pong")
             server.shutdown()
 
     def test_rpc_p2p_server(self):
