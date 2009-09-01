@@ -1,4 +1,4 @@
-import wrappers
+import wrappers, socket
 
 class Writer(object):
     """A serializer for python values to JSON. Allowed types for
@@ -385,7 +385,7 @@ class TestJson(unittest.TestCase):
         sockets = socket.socketpair()
         reader = ParserReader(sockets[0])
         sockets[0].close()
-        self.assertRaises(ValueError, lambda: reader.read_value())
+        self.assertRaises(socket.error, lambda: reader.read_value())
 
     def test_eof(self):
         import cStringIO
