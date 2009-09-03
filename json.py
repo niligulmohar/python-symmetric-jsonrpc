@@ -54,7 +54,10 @@ class Writer(object):
         elif isinstance(value, bool):
             self.s.write(value and 'true' or 'false')
         elif isinstance(value, int) or isinstance(value, float) or isinstance(value, long):
-            self.s.write(repr(value))
+            r = repr(value)
+            if r[-1] == 'L':
+                r = r[:-1]
+            self.s.write(r)
         elif value == None:
             self.s.write('null')
         elif isinstance(value, list):
@@ -320,6 +323,7 @@ class DebugReader(object):
     def null(self): print "NULL"; print self.state; return super(DebugReader, self).null()
     def fail(self, msg): super(DebugReader, self).fail(); raise Exception(msg)
 
+class DebugParserReader(DebugReader, ParserReader): pass
 
 #### Test code ####
 
