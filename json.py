@@ -38,7 +38,9 @@ class Writer(object):
         self.s.close()
 
     def write_value(self, value):
-        if isinstance(value, unicode):
+        if hasattr(value, '__to_json__'):
+            self.write_value(value.__to_json__())
+        elif isinstance(value, unicode):
             self.s.write('"')
             for c in value:
                 if c == '\b':
