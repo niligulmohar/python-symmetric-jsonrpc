@@ -1,4 +1,12 @@
 import wrappers, socket
+import sys
+import StringIO
+
+def to_json(obj):
+    i = StringIO.StringIO()
+    w = Writer(i,encoding='UTF-8')
+    w.write_value(obj)	
+    return i.getvalue()    
 
 class Writer(object):
     """A serializer for python values to JSON. Allowed types for
@@ -18,8 +26,13 @@ class Writer(object):
     the serialized json to as sole argument. To actually serialize
     data, call the write_value() or write_values() methods"""
 
-    def __init__(self, s):
-        self.s = wrappers.WriterWrapper(s)
+    def __init__(self, s, encoding=None):
+
+        self.encoding=encoding
+        if hasattr(s,'fileno'):
+            self.s = wrappers.WriterWrapper(s)
+        else:
+            self.s=s
 
     def close(self):
         self.s.close()
@@ -50,7 +63,7 @@ class Writer(object):
                     raise Exception("Cannot encode character %x into json string" % ord(c))
             self.s.write('"')
         elif isinstance(value, str):
-            self.write_value(value.decode())
+            self.write_value(value.decode(self.encoding or sys.getdefaultencoding()))
         elif isinstance(value, bool):
             self.s.write(value and 'true' or 'false')
         elif isinstance(value, int) or isinstance(value, float) or isinstance(value, long):
