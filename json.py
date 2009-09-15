@@ -93,7 +93,7 @@ class Writer(object):
                     self.write_value(i)
                 self.s.write(']')
         else:
-            raise Exception("Cannot encode %s to json" % value)
+            raise Exception("Cannot encode %s of type %s to json" % (value,type(value)))
 
     def write_values(self, values):
         for value in values:
