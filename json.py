@@ -75,22 +75,23 @@ class Writer(object):
             self.s.write(r)
         elif value == None:
             self.s.write('null')
-        elif isinstance(value, list):
-            self.s.write('[')
-            for n, i in enumerate(value):
-                if (n > 0):
-                    self.s.write(',')
-                self.write_value(i)
-            self.s.write(']')
-        elif isinstance(value, dict):
-            self.s.write('{')
-            for n, k in enumerate(value):
-                if (n > 0):
-                    self.s.write(',')
-                self.write_value(k)
-                self.s.write(':')
-                self.write_value(value[k])
-            self.s.write('}')
+        elif hasattr(value, '__iter__'):
+            if hasattr(value,'iteritems'):
+                self.s.write('{')
+                for n, (k, v) in enumerate(value.iteritems()):
+                    if (n > 0):
+                        self.s.write(',')
+                    self.write_value(k)
+                    self.s.write(':')
+                    self.write_value(v)
+                self.s.write('}')
+            else:
+                self.s.write('[')
+                for n, i in enumerate(value):
+                    if (n > 0):
+                        self.s.write(',')
+                    self.write_value(i)
+                self.s.write(']')
         else:
             raise Exception("Cannot encode %s to json" % value)
 
