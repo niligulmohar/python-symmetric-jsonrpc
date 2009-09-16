@@ -282,6 +282,9 @@ class ParserReader(Reader):
     either the read_value() method, or iterate over the return value
     of the read_values() method."""
 
+    def __init__(self, s, object_initializer = None):
+        Reader.__init__(self, s)
+        self.object_initializer = object_initializer        
     def _struct_begin(self):
         self.state.append([])
     def _struct_end(self):
@@ -292,7 +295,15 @@ class ParserReader(Reader):
     def object_begin(self): self._struct_begin()
     def object_end(self):
         self.state[-1] = dict(self.state[-1])
+        if '__jsonclass__' in self.state[-1]:
+            self.class_object()
         self._struct_end()
+    def class_object(self):
+        if self.object_initializer and self.state[-1]['__jsonclass__'][0] in self.object_initializer:
+            cls = self.state[-1].pop('__jsonclass__')
+            params = cls[1:]
+            cls = self.object_initializer[cls[0]]
+            self.state[-1] = cls(params, self.state[-1])
     def array_begin(self): self._struct_begin()
     def array_end(self): self._struct_end()
     def string_begin(self): self.state.append(u"")
@@ -401,8 +412,14 @@ class TestJson(unittest.TestCase):
         self.assertRaises(Exception, lambda: json('\x00', tempfile.TemporaryFile()))
     def test_encode_invalid_object(self):
         self.assertRaises(Exception, lambda: json(Reader(""), tempfile.TemporaryFile()))
-
-
+    def test_read_object(self):
+        STR = '{"__jsonclass__":["foo","bar"],"naja":123}'
+        def foo(arg, kw):
+            assert arg == ["bar"]
+            assert kw == {"naja":123}
+            return True
+        reader = ParserReader(STR, {'foo': foo})
+        assert reader.read_value() is True
     def test_broken_socket(self):
         sockets = socket.socketpair()
         reader = ParserReader(sockets[0])
