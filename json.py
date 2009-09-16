@@ -359,6 +359,8 @@ class TestJson(unittest.TestCase):
         reader1 = ParserReader(io)
         read_obj1 = reader1.read_value()
         self.assertEqual(obj, read_obj1)
+    def assertWriteEqual(self, str, obj):
+        self.assertEqual(str, to_json(obj))
     def test_read_value(self):
         STR = '{"array": ["string", false, null], "object": {"number": 4711, "bool": true}}'
         OBJ = {u"array": [u"string", False, None], u"object": {u"number": 4711, u"bool": True}}
@@ -454,6 +456,15 @@ class TestJson(unittest.TestCase):
         if timeout.isAlive():
             self.fail('Reader has hung.')
 
+    def test_write_object(self):
+        class SomeObj(object):
+            def __init__(self, x):
+                self.x = x
+                
+            def __to_json__(self):
+                return {'__jsonclass__': ['SomeObj'], 'x': self.x}
+
+        self.assertWriteEqual('{"x":4711,"__jsonclass__":["SomeObj"]}', SomeObj(4711))
 
 if __name__ == "__main__":
     unittest.main()
