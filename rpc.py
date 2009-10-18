@@ -29,7 +29,7 @@ class ClientConnection(dispatcher.Connection):
     reads and dispatches JSON values."""
 
     def _init(self, subject, *arg, **kw):
-        self.reader = json.ParserReader(subject)
+        self.reader = json.Reader(subject)
         self.writer = json.Writer(subject)
         dispatcher.Connection._init(self, subject, *arg, **kw)
 
@@ -233,7 +233,7 @@ class TestRpc(unittest.TestCase):
         sockets = socket.socketpair()
         echo_server = TestEchoClient(sockets[1])
 
-        reader = json.ParserReader(sockets[0])
+        reader = json.Reader(sockets[0])
         writer = json.Writer(sockets[0])
 
         obj = {'foo':1, 'bar':[1, 2]}
@@ -258,7 +258,7 @@ class TestRpc(unittest.TestCase):
             echo_server = TestEchoServer(server_socket, name="TestEchoServer")
 
             client_socket = test_make_client_socket()
-            reader = json.ParserReader(client_socket)
+            reader = json.Reader(client_socket)
             writer = json.Writer(client_socket)
 
             obj = {'foo':1, 'bar':[1, 2]}
@@ -279,7 +279,7 @@ class TestRpc(unittest.TestCase):
             obj = {'foo':1, 'bar':[1, 2]}
             writer.write_value(obj)
             
-            reader = json.ParserReader(client_socket)
+            reader = json.Reader(client_socket)
             return_obj = reader.read_value()
 
             self.assertEqual(obj, return_obj)
