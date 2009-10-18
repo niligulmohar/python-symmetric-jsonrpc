@@ -209,27 +209,35 @@ class Tokenizer(object):
 
     def _read_number(self):
         self.number_begin()
-        if self.s.peek() == '-':
-            self.char(self.s.next())
-        if self.s.peek() == '0':
-            self.char(self.s.next())
-        else:
-            self._assert(self.s.peek(), '123456789')
-            self.char(self.s.next())
-            while self.s.peek() in '0123456789':
+        # Note: We catch this here, as numbers don't have any special
+        # ending character. If we end up with an EOF and ignore it
+        # here, while the number is part of a bigger structure, the
+        # parsing function for the surrounding structure will do
+        # next/peek again and it will be re-raised.
+        try:
+            if self.s.peek() == '-':
                 self.char(self.s.next())
-        if self.s.peek() == '.':
-            self.char(self.s.next())
-            self._assert(self.s.peek(), '0123456789')
-            while self.s.peek() in '0123456789':
+            if self.s.peek() == '0':
                 self.char(self.s.next())
-        if self.s.peek() in 'eE':
-            self.char(self.s.next())
-            if self.s.peek() in '+-':
+            else:
+                self._assert(self.s.peek(), '123456789')
                 self.char(self.s.next())
-            self._assert(self.s.peek(), '0123456789')
-            while self.s.peek() in '0123456789':
+                while self.s.peek() in '0123456789':
+                    self.char(self.s.next())
+            if self.s.peek() == '.':
                 self.char(self.s.next())
+                self._assert(self.s.peek(), '0123456789')
+                while self.s.peek() in '0123456789':
+                    self.char(self.s.next())
+            if self.s.peek() in 'eE':
+                self.char(self.s.next())
+                if self.s.peek() in '+-':
+                    self.char(self.s.next())
+                self._assert(self.s.peek(), '0123456789')
+                while self.s.peek() in '0123456789':
+                    self.char(self.s.next())
+        except EOFError:
+            pass
         self.number_end()
 
     def _read_true(self):
@@ -383,6 +391,10 @@ class TestJson(unittest.TestCase):
     def test_from_json(self):
         STR = '{"array": ["string",false,null],"object":{"number":4711,"bool":true}}'
         OBJ = {u"array": [u"string", False, None], u"object": {u"number": 4711, u"bool": True}}
+        self.assertEqual(from_json(STR), OBJ)
+    def test_single_number_from_json(self):
+        STR = '3.33'
+        OBJ = 3.33
         self.assertEqual(from_json(STR), OBJ)
     def test_read_value(self):
         STR = '{"array": ["string",false,null],"object":{"number":4711,"bool":true}}'
