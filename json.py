@@ -2,6 +2,10 @@ import wrappers, socket
 import sys
 import StringIO
 
+def from_json(str):
+    r = ParserReader(str)
+    return r.read_value()
+
 def to_json(obj):
     i = StringIO.StringIO()
     w = Writer(i,encoding='UTF-8')
@@ -372,8 +376,16 @@ class TestJson(unittest.TestCase):
         self.assertEqual(obj, read_obj1)
     def assertWriteEqual(self, str, obj):
         self.assertEqual(str, to_json(obj))
+    def test_to_json(self):
+        STR = '["string",false,null]'
+        OBJ = [u"string", False, None]
+        self.assertEqual(to_json(OBJ), STR)
+    def test_from_json(self):
+        STR = '{"array": ["string",false,null],"object":{"number":4711,"bool":true}}'
+        OBJ = {u"array": [u"string", False, None], u"object": {u"number": 4711, u"bool": True}}
+        self.assertEqual(from_json(STR), OBJ)
     def test_read_value(self):
-        STR = '{"array": ["string", false, null], "object": {"number": 4711, "bool": true}}'
+        STR = '{"array": ["string",false,null],"object":{"number":4711,"bool":true}}'
         OBJ = {u"array": [u"string", False, None], u"object": {u"number": 4711, u"bool": True}}
         self.assertReadEqual(STR, OBJ)
     def test_read_numbers(self):
