@@ -140,28 +140,24 @@ class ReIterator(object):
     """An iterator wrapper that provides lookahead through the peek
     method."""
     def __init__(self, i):
-        self.prefix = [] # In reverse order!
-        self.closable = i
-        self.i = iter(i)
+        self._prefix = [] # In reverse order!
+        self._i = iter(i)
 
     def __iter__(self):
         return self
 
-    def close(self):
-        self.closable.close()
-
     def next(self):
-        if self.prefix:
-            return self.prefix.pop()
-        return self.i.next()
+        if self._prefix:
+            return self._prefix.pop(0)
+        return self._i.next()
 
-    def put(self, value):
-        self.prefix.append(value)
+    def _put(self, value):
+        self._prefix.append(value)
 
     def peek(self):
         try:
-            if not self.prefix:
-                self.put(self.i.next())
-            return self.prefix[-1]
+            if not self._prefix:
+                self._put(self._i.next())
+            return self._prefix[-1]
         except StopIteration:
             raise EOFError()

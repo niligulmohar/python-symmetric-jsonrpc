@@ -143,7 +143,8 @@ class Tokenizer(object):
     a full example."""
 
     def __init__(self, s):
-        self.s = wrappers.ReIterator(wrappers.ReaderWrapper(s))
+        self.closable = wrappers.ReaderWrapper(s)
+        self.s = wrappers.ReIterator(self.closable)
 
     # Override these in a subclass to actually do something with the
     # parsed data
@@ -304,7 +305,7 @@ class Tokenizer(object):
         else: return self._read_number()
 
     def close(self):
-        self.s.close()
+        self.closable.close()
 
     def read_value(self):
         return self._read_value()
