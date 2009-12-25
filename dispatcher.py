@@ -21,12 +21,15 @@
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307
 # USA
 
+"""Facilities for managing a hirearchy of threads each providing a
+synchronous I/O interface."""
+
 from __future__ import with_statement
 
-import threading, select
+import select
+import threading
 
 class Thread(threading.Thread):
-
     """This class is the base class for a set of threading.Thread
     subclasses that provides automatic start, some debugging print-out
     for start/stop, a subject resource to manage (like a socket), and
@@ -34,12 +37,12 @@ class Thread(threading.Thread):
 
     debug_thread = False
 
-    def __init__(self, *arg, **kw):
-        self._init(*arg, **kw)
+    def __init__(self, subject, parent=None, *arg, **kw):
+        self._init(subject=subject, parent=parent, *arg, **kw)
         self.start()
         self.run_parent()
 
-    def _init(self, subject, parent = None, *arg, **kw):
+    def _init(self, subject, parent=None, *arg, **kw):
         self.children = []
         self.subject = subject
         self.parent = parent
@@ -106,7 +109,7 @@ class Connection(Thread):
         pass
 
     def dispatch(self, subject):
-        getattr(self, self._dispatcher_class)(parent = self, subject = subject)
+        getattr(self, self._dispatcher_class)(parent=self, subject=subject)
 
 class ServerConnection(Connection):
     """Connection manager thread handling a listening socket,
@@ -119,10 +122,10 @@ class ServerConnection(Connection):
         poll.register(self.subject, select.POLLIN)
 
         while True:
-            status = poll.poll(100)
             if self._shutdown:
                 self.subject.close()
                 return
+            status = poll.poll(100)
             if status:
                 socket, address = self.subject.accept()
                 yield socket
@@ -136,8 +139,8 @@ class ThreadedClient(Thread):
 
     _dispatcher_class = "Thread"
 
-    def _init(self, *arg, **kw):
-        Thread._init(self, *arg, **kw)
+    def _init(self, subject, parent=None, *arg, **kw):
+        Thread._init(self, subject=subject, parent=parent, *arg, **kw)
         self.dispatch_subject = self.subject
         self.subject = getattr(self.parent, "subject", None)
 
@@ -145,4 +148,4 @@ class ThreadedClient(Thread):
         self.dispatch(self.dispatch_subject)
 
     def dispatch(self, subject):
-        getattr(self, self._dispatcher_class)(parent = self, subject = subject)
+        getattr(self, self._dispatcher_class)(parent=self, subject=subject)

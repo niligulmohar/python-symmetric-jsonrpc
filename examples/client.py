@@ -28,7 +28,7 @@ class PingRPCClient(symmetricjsonrpc.RPCClient):
         def dispatch_request(self, subject):
             # Handle callbacks from the server
             assert subject['method'] == "pingping"
-            return "pingpong"    
+            return "pingpong"
 
 # Set up a TCP socket and connect to the server
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

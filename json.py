@@ -21,19 +21,25 @@
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307
 # USA
 
-import wrappers, socket
+"""JSON (de)serialization facilities."""
+
 import sys
 import StringIO
+import unittest
+
+import wrappers
 
 def from_json(str):
+    """Return a python object representing the json value in str."""
     r = Reader(str)
     return r.read_value()
 
 def to_json(obj):
+    """Return a json string representing the python object obj."""
     i = StringIO.StringIO()
-    w = Writer(i,encoding='UTF-8')
-    w.write_value(obj)	
-    return i.getvalue()    
+    w = Writer(i, encoding='UTF-8')
+    w.write_value(obj)
+    return i.getvalue()
 
 class Writer(object):
     """A serializer for python values to JSON. Allowed types for
@@ -48,18 +54,19 @@ class Writer(object):
         * Unicode
         * List
         * Dict (keys must be String or Unicode)
+        * any object with a __to_json__ method
 
     The writer must be instantiated with a file-like object to write
     the serialized json to as sole argument. To actually serialize
-    data, call the write_value() or write_values() methods"""
+    data, call the write_value() or write_values() methods."""
 
     def __init__(self, s, encoding=None):
 
-        self.encoding=encoding
-        if hasattr(s,'fileno'):
+        self.encoding = encoding
+        if hasattr(s, 'fileno'):
             self.s = wrappers.WriterWrapper(s)
         else:
-            self.s=s
+            self.s = s
 
     def close(self):
         self.s.close()
@@ -132,7 +139,7 @@ class Tokenizer(object):
     This class does not actually parse JSON into Python objects, it
     only provides tokenization (just like a SAX parser for XML).
 
-    This class must be subclassed to be usefull. See Reader for
+    This class must be subclassed to be useful. See Reader for
     a full example."""
 
     def __init__(self, s):
@@ -150,7 +157,7 @@ class Tokenizer(object):
     def string_end(self): pass
     def number_begin(self): pass
     def number_end(self): pass
-    def char(self, c): pass 
+    def char(self, c): pass
     def true(self): pass
     def false(self): pass
     def null(self): pass
@@ -307,7 +314,6 @@ class Tokenizer(object):
             self._read_value()
 
 class Reader(Tokenizer):
-
     """A JSON parser that parses JSON strings read from a file-like
     object or character iterator (for example a string) into Python
     values.
@@ -319,7 +325,7 @@ class Reader(Tokenizer):
 
     def __init__(self, s, object_initializer = None):
         Tokenizer.__init__(self, s)
-        self.object_initializer = object_initializer        
+        self.object_initializer = object_initializer
     def _struct_begin(self):
         self.state.append([])
     def _struct_end(self):
@@ -346,7 +352,7 @@ class Reader(Tokenizer):
     def number_begin(self): self.state.append(u"")
     def number_end(self):
         if '.' in self.state[-1] or 'e' in self.state[-1] or 'E' in self.state[-1]:
-            self.state[-1] = float(self.state[-1]) 
+            self.state[-1] = float(self.state[-1])
         else:
             self.state[-1] = int(self.state[-1])
         self._struct_end()
@@ -389,17 +395,16 @@ class DebugReader(DebugTokenizer, Reader): pass
 
 #### Test code ####
 
-import threading
-import socket
-import unittest
-import tempfile
-
 class TestJson(unittest.TestCase):
+    import socket
+    import tempfile
+    import threading
+
     def assertReadEqual(self, str, obj):
         reader = Reader(str)
         read_obj = reader.read_value()
         self.assertEqual(obj, read_obj)
-        io = tempfile.TemporaryFile()
+        io = self.tempfile.TemporaryFile()
         Writer(io).write_value(obj)
         io.seek(0)
         reader1 = Reader(io)
@@ -456,9 +461,9 @@ class TestJson(unittest.TestCase):
         for i, r in enumerate(reader.read_values()):
             self.assertEqual(r, values[i])
     def test_encode_invalid_control_character(self):
-        self.assertRaises(Exception, lambda: json('\x00', tempfile.TemporaryFile()))
+        self.assertRaises(Exception, lambda: json('\x00', self.tempfile.TemporaryFile()))
     def test_encode_invalid_object(self):
-        self.assertRaises(Exception, lambda: json(Tokenizer(""), tempfile.TemporaryFile()))
+        self.assertRaises(Exception, lambda: json(Tokenizer(""), self.tempfile.TemporaryFile()))
     def test_read_object(self):
         STR = '{"__jsonclass__":["foo","bar"],"naja":123}'
         def foo(arg, kw):
@@ -468,22 +473,22 @@ class TestJson(unittest.TestCase):
         reader = Reader(STR, {'foo': foo})
         assert reader.read_value() is True
     def test_broken_socket(self):
-        sockets = socket.socketpair()
+        sockets = self.socket.socketpair()
         reader = Reader(sockets[0])
         sockets[0].close()
-        self.assertRaises(socket.error, lambda: reader.read_value())
+        self.assertRaises(self.socket.error, lambda: reader.read_value())
 
     def test_eof(self):
         import cStringIO
 
         obj = {'foo':1, 'bar':[1, 2]}
-        io0 = tempfile.TemporaryFile()
+        io0 = self.tempfile.TemporaryFile()
         Writer(io0).write_value(obj)
         io0.seek(0)
         full_json_string = io0.read()
 
         for json_string, eof_error in ((full_json_string, False), (full_json_string[0:10], True), ('', True)):
-            io1 = tempfile.TemporaryFile()
+            io1 = self.tempfile.TemporaryFile()
             io1.write(json_string)
             io1.seek(0)
             reader = Reader(io1)
@@ -494,16 +499,16 @@ class TestJson(unittest.TestCase):
 
 
     def test_closed_socket(self):
-        class Timeout(threading.Thread):
+        class Timeout(self.threading.Thread):
             def run(self1):
                 obj = {'foo':1, 'bar':[1, 2]}
-                io = tempfile.TemporaryFile()
+                io = self.tempfile.TemporaryFile()
                 Writer(io).write_value(obj)
                 io.seek(0)
                 full_json_string = io.read()
 
                 for json_string, eof_error in ((full_json_string, False), (full_json_string[0:10], True), ('', True)):
-                    sockets = socket.socketpair()
+                    sockets = self.socket.socketpair()
                     reader = Reader(sockets[0])
 
                     for c in json_string:
@@ -524,7 +529,7 @@ class TestJson(unittest.TestCase):
         class SomeObj(object):
             def __init__(self, x):
                 self.x = x
-                
+
             def __to_json__(self):
                 return {'__jsonclass__': ['SomeObj'], 'x': self.x}
 

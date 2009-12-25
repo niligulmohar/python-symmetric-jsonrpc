@@ -21,6 +21,8 @@
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307
 # USA
 
+"""A symmetric and transport agnostic JSON-RPC implementation"""
+
 from __future__ import with_statement
 
 from json import *

@@ -21,9 +21,17 @@
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307
 # USA
 
+"""Utilities for abstracting I/O for sockets or file-like objects
+behind an identical interface."""
+
 import select
 
 class WriterWrapper(object):
+    """Provides a unified interface for writing to sockets or
+    file-like objects.
+
+    Its instances will actually belong to one of its subclasses,
+    depending on what type of object it wraps."""
     poll_timeout = 1000
 
     def __new__(cls, f):
@@ -35,7 +43,7 @@ class WriterWrapper(object):
             return SocketWriter(f)
         else:
             return f
-            
+
     def __init__(self, f):
         self.f = f
         self.poll = select.poll()
@@ -56,7 +64,7 @@ class WriterWrapper(object):
             res = self.poll.poll(self.poll_timeout)
         if self.closed:
             raise EOFError
-    
+
     def _write(self, s):
         raise NotImplementedError
 
@@ -69,8 +77,13 @@ class SocketWriter(WriterWrapper):
         self.f.send(s)
 
 class ReaderWrapper(object):
+    """Provides a unified interface for reading from sockets or
+    file-like objects.
+
+    Its instances will actually belong to one of its subclasses,
+    depending on what type of object it wraps."""
     poll_timeout = 1000
-    
+
     def __new__(cls, f):
         if cls is not ReaderWrapper:
             return object.__new__(cls)
@@ -115,15 +128,17 @@ class ReaderWrapper(object):
     def _read(self):
         raise NotImplementedError
 
-class FileReader(ReaderWrapper):  
+class FileReader(ReaderWrapper):
     def _read(self):
         return self.file.read(1)
 
-class SocketReader(ReaderWrapper):  
+class SocketReader(ReaderWrapper):
     def _read(self):
         return self.file.recv(1)
 
 class ReIterator(object):
+    """An iterator wrapper that provides lookahead through the peek
+    method."""
     def __init__(self, i):
         self.prefix = [] # In reverse order!
         self.closable = i

@@ -21,18 +21,28 @@
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307
 # USA
 
+"""JSON-RPC implementation classes."""
+
 from __future__ import with_statement
 
-import json, dispatcher, threading, traceback, unittest, socket, time, select
+import select
+import socket
+import threading
+import time
+import traceback
+import unittest
+
+import dispatcher
+import json
 
 class ClientConnection(dispatcher.Connection):
     """A connection manager for a connected socket (or similar) that
     reads and dispatches JSON values."""
 
-    def _init(self, subject, *arg, **kw):
+    def _init(self, subject, parent=None, *arg, **kw):
         self.reader = json.Reader(subject)
         self.writer = json.Writer(subject)
-        dispatcher.Connection._init(self, subject, *arg, **kw)
+        dispatcher.Connection._init(self, subject=subject, parent=parent, *arg, **kw)
 
     def shutdown(self):
         self.reader.close()
@@ -43,14 +53,17 @@ class ClientConnection(dispatcher.Connection):
         return self.reader.read_values()
 
 class RPCClient(ClientConnection):
-    """A JSON RCP client connection manager. This class represents a
-    single client-server connection on both the conecting and
-    listening side. It provides methods for issuing requests and
-    sending notifications, as well as handles incoming JSON RPC
-    request, responses and notifications and dispatches them in
-    separate threads. The dispatched threads are instances of
-    RPCClient.Dispatch, and you must subclass it and override the
-    dispatch_* methods in it to handle incoming data."""
+    """A JSON RPC client connection manager.
+
+    This class represents a single client-server connection on both
+    the conecting and listening side. It provides methods for issuing
+    requests and sending notifications, as well as handles incoming
+    JSON RPC request, responses and notifications and dispatches them
+    in separate threads.
+
+    The dispatched threads are instances of RPCClient.Dispatch, and
+    you must subclass it and override the dispatch_* methods in it to
+    handle incoming data."""
 
     class Request(dispatcher.ThreadedClient):
         def dispatch(self, subject):
@@ -71,7 +84,7 @@ class RPCClient(ClientConnection):
                         self.parent._recv_waiting[subject['id']]['condition'].notifyAll()
                 else:
                     self.dispatch_response(subject)
-                
+
             elif 'method' in subject:
                 try:
                     self.dispatch_notification(subject)
@@ -88,19 +101,19 @@ class RPCClient(ClientConnection):
             """Note: Only used to results for calls that some other thread isn't waiting for"""
             pass
 
-    def _init(self, *arg, **kw):
+    def _init(self, subject, parent=None, *arg, **kw):
         self._request_id = 0
         self._send_lock = threading.Lock()
         self._recv_waiting = {}
-        ClientConnection._init(self, *arg, **kw)
+        ClientConnection._init(self, subject=subject, parent=parent, *arg, **kw)
 
-    def request(self, method, params = [], wait_for_response = False):
+    def request(self, method, params=[], wait_for_response=False):
         with self._send_lock:
             self._request_id += 1
             request_id = self._request_id
             if wait_for_response:
-                self._recv_waiting[request_id] = {'condition':threading.Condition(), 'result': None}
-            self.writer.write_value({'method':method, 'params': params, 'id': request_id})
+                self._recv_waiting[request_id] = {'condition': threading.Condition(), 'result': None}
+            self.writer.write_value({'method': method, 'params': params, 'id': request_id})
 
             if not wait_for_response:
                 return request_id
@@ -119,11 +132,11 @@ class RPCClient(ClientConnection):
 
     def respond(self, result, error, id):
         with self._send_lock:
-            self.writer.write_value({'result':result, 'error': error, 'id': id})
+            self.writer.write_value({'result': result, 'error': error, 'id': id})
 
-    def notify(self, method, params = []):
+    def notify(self, method, params=[]):
         with self._send_lock:
-            self.writer.write_value({'method':method, 'params': params})
+            self.writer.write_value({'method': method, 'params': params})
 
     def __getattr__(self, name):
         def rpc_wrapper(*arg):
@@ -135,8 +148,7 @@ class RPCServer(dispatcher.ServerConnection):
     listening sockets and recieves and dispatches new inbound
     connections. Each inbound connection is awarded two threads, one
     that can call the other side if there is a need, and one that
-    handles incoming requests, responses and
-    notifications.
+    handles incoming requests, responses and notifications.
 
     RPCServer.Dispatch.Dispatch is an RPCClient subclass that handles
     incoming requests, responses and notifications. Initial calls to
@@ -184,7 +196,7 @@ class TestPingRPCClient(RPCClient):
         def dispatch_request(self, subject):
             if debug_tests: print "PingClient: dispatch_request", subject
             assert subject['method'] == "pingping"
-            return "pingpong"    
+            return "pingpong"
 
 class TestPongRPCServer(RPCServer):
     class InboundConnection(RPCServer.InboundConnection):
@@ -250,7 +262,7 @@ class TestRpc(unittest.TestCase):
         writer = json.Writer(client_socket)
         writer.write_value({'foo':1, 'bar':2})
         client_socket.close()
-        
+
         echo_server.shutdown()
 
     def test_server(self):
@@ -279,7 +291,7 @@ class TestRpc(unittest.TestCase):
 
             obj = {'foo':1, 'bar':[1, 2]}
             writer.write_value(obj)
-            
+
             reader = json.Reader(client_socket)
             return_obj = reader.read_value()
 
@@ -307,8 +319,8 @@ class TestRpc(unittest.TestCase):
                     break
                 time.sleep(1)
             assert 'result' in res and res['result']
-            
+
             server.shutdown()
-            
+
 if __name__ == "__main__":
     unittest.main()
