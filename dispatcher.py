@@ -70,16 +70,10 @@ class Thread(threading.Thread):
         if self.debug_thread: print "%s: END" % self.getName()
 
     def shutdown(self):
-        """Do not call this from within a a child thread or you will deadlock. Use the ShutDownThread helper for that instead."""
         if self.debug_thread: print "%s: shutdown: %s" % (threading.currentThread().getName(), self.getName(),)
         for child in list(self.children):
             child.shutdown()
         self._shutdown = True
-        try:
-            self.join()
-        except RuntimeError:
-            # Whatever, if this is the current thread, just ignore it...
-            pass
         if self.debug_thread: print "%s: shutdown done: %s" % (threading.currentThread().getName(), self.getName(),)
 
     def run_parent(self):
@@ -87,10 +81,6 @@ class Thread(threading.Thread):
 
     def run_thread(self, *arg, **kw):
         pass
-
-class ShutDownThread(Thread):
-    def run_thread(self):
-        self.subject.shutdown()
 
 class Connection(Thread):
     """A connection manager thread base class."""

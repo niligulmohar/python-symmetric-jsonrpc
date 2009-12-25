@@ -33,7 +33,7 @@ class PongRPCServer(symmetricjsonrpc.RPCServer):
                     # notification, not a method for this - when the
                     # server's dead, there's no way to inform the
                     # client that it is...
-                    symmetricjsonrpc.ShutDownThread(self.parent.parent.parent)
+                    self.parent.parent.parent.shutdown()
 
                 def dispatch_request(self, subject):
                     assert subject['method'] == "ping"

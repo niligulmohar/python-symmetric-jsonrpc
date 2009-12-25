@@ -264,6 +264,7 @@ class TestRpc(unittest.TestCase):
         client_socket.close()
 
         echo_server.shutdown()
+        echo_server.join()
 
     def test_server(self):
         for n in range(3):
@@ -280,6 +281,7 @@ class TestRpc(unittest.TestCase):
 
             self.assertEqual(obj, return_obj)
             echo_server.shutdown()
+            echo_server.join()
 
     def test_threaded_server(self):
         for n in range(3):
@@ -297,6 +299,7 @@ class TestRpc(unittest.TestCase):
 
             self.assertEqual(obj, return_obj)
             echo_server.shutdown()
+            echo_server.join()
 
     def test_rpc_server(self):
         for n in range(3):
@@ -308,6 +311,7 @@ class TestRpc(unittest.TestCase):
             self.assertEqual(client.request("ping", wait_for_response=True), "pong")
             self.assertEqual(client.ping(), "pong")
             server.shutdown()
+            server.join()
 
     def test_rpc_p2p_server(self):
         for n in range(3):
@@ -321,6 +325,7 @@ class TestRpc(unittest.TestCase):
             assert 'result' in res and res['result']
 
             server.shutdown()
+            server.join()
 
 if __name__ == "__main__":
     unittest.main()
