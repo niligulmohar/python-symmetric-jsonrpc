@@ -33,14 +33,12 @@ build-arch: build-arch-stamp
 build-arch-stamp: configure-stamp 
 
 	# Add here commands to compile the arch part of the package.
-	#$(MAKE) 
 	touch $@
 
 build-indep: build-indep-stamp
 build-indep-stamp: configure-stamp 
 
 	# Add here commands to compile the indep part of the package.
-	#$(MAKE) doc
 	touch $@
 
 clean:
@@ -58,7 +56,7 @@ install-indep:
 	dh_testroot
 	dh_clean -k -i 
 	dh_installdirs -i
-	python setup.py --dry-run install --install-lib=debian/python-symmetric-jsonrpc/usr/share/python-support/python-symmetric-jsonrpc
+	python setup.py install --install-lib=debian/python-symmetric-jsonrpc/usr/share/python-support/python-symmetric-jsonrpc
 	dh_install -i
 
 install-arch:
@@ -69,9 +67,8 @@ install-arch:
 
 	# Add here commands to install the arch part of the package into 
 	# debian/tmp.
-	$(MAKE) DESTDIR=$(CURDIR)/debian/python-symmetric-jsonrpc install
-
 	dh_install -s
+
 # Must not depend on anything. This is to be called by
 # binary-arch/binary-indep
 # in another 'make' thread.

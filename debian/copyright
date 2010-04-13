@@ -1,4 +1,4 @@
-This package was debianized by Axel Liljencrantz <egil.moeller@freecode.no> on
+This package was debianized by Egil Möller (FreeCode AS company email) <egil.moeller@freecode.no> on
 Tue, 13 Apr 2010 11:56:26 +0000.
 
 It was downloaded from <url://example.com>
@@ -32,7 +32,7 @@ License:
 On Debian systems, the complete text of the GNU Lesser General
 Public License can be found in `/usr/share/common-licenses/LGPL'.
 
-The Debian packaging is (C) 2010, Axel Liljencrantz <egil.moeller@freecode.no> and
+The Debian packaging is (C) 2010, Egil Möller (FreeCode AS company email) <egil.moeller@freecode.no> and
 is licensed under the GPL, see `/usr/share/common-licenses/GPL'.
 
 # Please also look if there are files or directories which have a
