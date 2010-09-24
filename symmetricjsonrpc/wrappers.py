@@ -38,10 +38,10 @@ class WriterWrapper(object):
     def __new__(cls, f):
         if cls is not WriterWrapper:
             return object.__new__(cls)
-        elif hasattr(f, "write"):
-            return FileWriter(f)
         elif hasattr(f, "send"):
             return SocketWriter(f)
+        elif hasattr(f, "write"):
+            return FileWriter(f)
         else:
             return f
 
@@ -102,10 +102,10 @@ class ReaderWrapper(object):
     def __new__(cls, f):
         if cls is not ReaderWrapper:
             return object.__new__(cls)
-        elif hasattr(f, "read"):
-            return FileReader(f)
         elif hasattr(f, "recv"):
             return SocketReader(f)
+        elif hasattr(f, "read"):
+            return FileReader(f)
         else:
             return f
 

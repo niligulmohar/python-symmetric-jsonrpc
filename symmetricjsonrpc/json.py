@@ -92,7 +92,7 @@ class Writer(object):
                 elif c == '\\':
                     self.s.write(r'\\')
                 elif c >= ' ' and c <= '~':
-                    self.s.write(c)
+                    self.s.write(c.encode('ascii'))
                 elif c > '~':
                     self.s.write(r'\u%04x' % ord(c))
                 else:
@@ -166,7 +166,7 @@ class Tokenizer(object):
 
     def _assert(self, c, values):
         if c not in values:
-            self.fail("<%s> not in <%s>" % (c, values))
+            self.fail("%s not in %s" % (repr(c), repr(values)))
         return c
 
     def _read_space(self):
