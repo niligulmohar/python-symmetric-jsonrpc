@@ -21,13 +21,14 @@
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307
 # USA
 
-import symmetricjsonrpc, socket
+import symmetricjsonrpc, sys
 
 class PongRPCServer(symmetricjsonrpc.RPCServer):
     class InboundConnection(symmetricjsonrpc.RPCServer.InboundConnection):
         class Thread(symmetricjsonrpc.RPCServer.InboundConnection.Thread):
             class Request(symmetricjsonrpc.RPCServer.InboundConnection.Thread.Request):
                 def dispatch_notification(self, subject):
+                    print "dispatch_notification(%s)" % (repr(subject),)
                     assert subject['method'] == "shutdown"
                     # Shutdown the server. Note: We must use a
                     # notification, not a method for this - when the
@@ -36,15 +37,36 @@ class PongRPCServer(symmetricjsonrpc.RPCServer):
                     self.parent.parent.parent.shutdown()
 
                 def dispatch_request(self, subject):
+                    print "dispatch_request(%s)" % (repr(subject),)
                     assert subject['method'] == "ping"
                     # Call the client back
                     # self.parent is a symmetricjsonrpc.RPCClient subclass (see the client code for more examples)
-                    assert self.parent.request("pingping", wait_for_response=True) == "pingpong"
+                    res = self.parent.request("pingping", wait_for_response=True)
+                    print "parent.pingping => %s" % (repr(res),)
+                    assert res == "pingpong"
                     return "pong"
 
-# Set up a TCP socket and start listening on it for connections
-s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+if '--help' in sys.argv:
+    print """client.py
+    --ssl
+        Encrypt communication with SSL using M2Crypto. Requires a
+        server.pem and server.key in the current directory.
+"""
+    sys.exit(0)
+
+if '--ssl' in sys.argv:
+    # Set up a SSL socket
+    import M2Crypto
+    ctx = M2Crypto.SSL.Context()
+    ctx.load_cert('server.pem', 'server.key')
+    s = M2Crypto.SSL.Connection(ctx)
+else:
+    # Set up a TCP socket
+    import socket
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+
+#  Start listening on the socket for connections
 s.bind(('', 4712))
 s.listen(1)
 

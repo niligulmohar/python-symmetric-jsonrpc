@@ -21,24 +21,46 @@
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307
 # USA
 
-import symmetricjsonrpc, socket
+import symmetricjsonrpc, sys
 
 class PingRPCClient(symmetricjsonrpc.RPCClient):
     class Request(symmetricjsonrpc.RPCClient.Request):
         def dispatch_request(self, subject):
             # Handle callbacks from the server
+            print "dispatch_request(%s)" % (repr(subject),)
             assert subject['method'] == "pingping"
             return "pingpong"
 
-# Set up a TCP socket and connect to the server
-s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+if '--help' in sys.argv:
+    print """client.py
+    --ssl
+        Encrypt communication with SSL using M2Crypto. Requires a
+        server.pem in the current directory.
+"""
+    sys.exit(0)
+
+if '--ssl' in sys.argv:
+    # Set up an SSL connection
+    import M2Crypto
+    ctx = M2Crypto.SSL.Context()
+    ctx.set_verify(M2Crypto.SSL.verify_peer | M2Crypto.SSL.verify_fail_if_no_peer_cert, depth=9)
+    if ctx.load_verify_locations('server.pem') != 1: raise Exception('No CA certs')
+    s = M2Crypto.SSL.Connection(ctx)
+else:
+    # Set up a TCP socket
+    import socket
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+#  Connect to the server
 s.connect(('localhost', 4712))
 
 # Create a client thread handling for incoming requests
 client = PingRPCClient(s)
 
 # Call a method on the server
-assert client.request("ping", wait_for_response=True) == "pong"
+res = client.request("ping", wait_for_response=True)
+print "client.ping => %s" % (repr(res),)
+assert res == "pong"
 
 # Notify server it can shut down
 client.notify("shutdown")
