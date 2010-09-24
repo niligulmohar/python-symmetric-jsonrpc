@@ -61,19 +61,19 @@ class Writer(object):
     data, call the write_value() or write_values() methods."""
 
     def __init__(self, s, encoding=None):
-
         self.encoding = encoding
-        if hasattr(s, 'fileno'):
-            self.s = wrappers.WriterWrapper(s)
-        else:
-            self.s = s
+        self.s = wrappers.WriterWrapper(s)
 
     def close(self):
         self.s.close()
 
     def write_value(self, value):
+        self.unflushed_write_value(value)
+        self.s.flush()
+
+    def unflushed_write_value(self, value):
         if hasattr(value, '__to_json__'):
-            self.write_value(value.__to_json__())
+            self.unflushed_write_value(value.__to_json__())
         elif isinstance(value, unicode):
             self.s.write('"')
             for c in value:
@@ -99,7 +99,7 @@ class Writer(object):
                     raise Exception("Cannot encode character %x into json string" % ord(c))
             self.s.write('"')
         elif isinstance(value, str):
-            self.write_value(value.decode(self.encoding or sys.getdefaultencoding()))
+            self.unflushed_write_value(value.decode(self.encoding or sys.getdefaultencoding()))
         elif isinstance(value, bool):
             self.s.write(value and 'true' or 'false')
         elif isinstance(value, int) or isinstance(value, float) or isinstance(value, long):
@@ -115,23 +115,23 @@ class Writer(object):
                 for n, (k, v) in enumerate(value.iteritems()):
                     if (n > 0):
                         self.s.write(',')
-                    self.write_value(k)
+                    self.unflushed_write_value(k)
                     self.s.write(':')
-                    self.write_value(v)
+                    self.unflushed_write_value(v)
                 self.s.write('}')
             else:
                 self.s.write('[')
                 for n, i in enumerate(value):
                     if (n > 0):
                         self.s.write(',')
-                    self.write_value(i)
+                    self.unflushed_write_value(i)
                 self.s.write(']')
         else:
             raise Exception("Cannot encode %s of type %s to json" % (value,type(value)))
 
-    def write_values(self, values):
+    def unflushed_write_values(self, values):
         for value in values:
-            self.write_value(value)
+            self.unflushed_write_value(value)
 
 class Tokenizer(object):
     """A SAX-like recursive-descent parser for JSON.

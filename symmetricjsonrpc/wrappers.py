@@ -33,6 +33,7 @@ class WriterWrapper(object):
     Its instances will actually belong to one of its subclasses,
     depending on what type of object it wraps."""
     poll_timeout = 1000
+    buff_maxsize = 512
 
     def __new__(cls, f):
         if cls is not WriterWrapper:
@@ -46,8 +47,12 @@ class WriterWrapper(object):
 
     def __init__(self, f):
         self.f = f
-        self.poll = select.poll()
-        self.poll.register(f, select.POLLOUT | select.POLLERR | select.POLLHUP | select.POLLNVAL)
+        self.buff = []
+        self.buff_len = 0
+        self.poll = None
+        if hasattr(f, 'fileno'):
+            self.poll = select.poll()
+            self.poll.register(f, select.POLLOUT | select.POLLERR | select.POLLHUP | select.POLLNVAL)
         self.closed = False
 
     def close(self):
@@ -55,10 +60,20 @@ class WriterWrapper(object):
         self.f.close()
 
     def write(self, s):
+        self.buff.append(s)
+        self.buff_len += len(s)
+        if self.buff_len > self.buff_maxsize:
+            self.flush()
+
+    def flush(self):
         self._wait()
-        self._write(s)
+        self._write(''.join(self.buff))
+        del self.buff[:]
+        self.buff_len = 0
 
     def _wait(self):
+        if not self.poll:
+            return
         res = []
         while not res and not self.closed:
             res = self.poll.poll(self.poll_timeout)
