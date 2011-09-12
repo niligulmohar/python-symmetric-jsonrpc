@@ -76,7 +76,7 @@ class RPCClient(ClientConnection):
                     error = {'type': type(e).__name__,
                              'args': list(e.args)}
                 self.parent.respond(result, error, subject['id'])
-            elif 'result' in subject:
+            elif 'result' in subject or 'error' in subject:
                 assert 'id' in subject
                 if subject['id'] in self.parent._recv_waiting:
                     with self.parent._recv_waiting[subject['id']]['condition']:
@@ -84,7 +84,6 @@ class RPCClient(ClientConnection):
                         self.parent._recv_waiting[subject['id']]['condition'].notifyAll()
                 else:
                     self.dispatch_response(subject)
-
             elif 'method' in subject:
                 try:
                     self.dispatch_notification(subject)
@@ -113,7 +112,7 @@ class RPCClient(ClientConnection):
             request_id = self._request_id
             if wait_for_response:
                 self._recv_waiting[request_id] = {'condition': threading.Condition(), 'result': None}
-            self.writer.write_value({'method': method, 'params': params, 'id': request_id})
+            self.writer.write_value({'jsonrpc': '2.0', 'method': method, 'params': params, 'id': request_id})
 
             if not wait_for_response:
                 return request_id
@@ -121,9 +120,8 @@ class RPCClient(ClientConnection):
         try:
             with self._recv_waiting[request_id]['condition']:
                 self._recv_waiting[request_id]['condition'].wait()
-                if self._recv_waiting[request_id]['result']['error'] is not None:
-                    exc = Exception(*self._recv_waiting[request_id]['result']['error']['args'])
-                    exc.serialized_type = self._recv_waiting[request_id]['result']['error']['type']
+                if self._recv_waiting[request_id]['result'].has_key('error') and self._recv_waiting[request_id]['result']['error'] is not None:
+                    exc = Exception(self._recv_waiting[request_id]['result']['error']['message'])
                     raise exc
                 return self._recv_waiting[request_id]['result']['result']
         finally:
