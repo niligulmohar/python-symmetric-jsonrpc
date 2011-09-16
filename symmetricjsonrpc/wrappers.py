@@ -24,8 +24,8 @@
 """Utilities for abstracting I/O for sockets or file-like objects
 behind an identical interface."""
 
-debug_write = True
-debug_read = True
+debug_write = False
+debug_read = False
 
 import select
 
