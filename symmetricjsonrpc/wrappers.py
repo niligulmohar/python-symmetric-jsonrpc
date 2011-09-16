@@ -24,6 +24,9 @@
 """Utilities for abstracting I/O for sockets or file-like objects
 behind an identical interface."""
 
+debug_write = True
+debug_read = True
+
 import select
 
 class WriterWrapper(object):
@@ -66,10 +69,13 @@ class WriterWrapper(object):
             self.flush()
 
     def flush(self):
-        self._wait()
-        self._write(''.join(self.buff))
+        data = ''.join(self.buff)
         del self.buff[:]
         self.buff_len = 0
+        if debug_write: print "write(%s)" % (repr(data),)
+        while data:
+            self._wait()
+            data = data[self._write(data):]
 
     def _wait(self):
         if not self.poll:
@@ -86,10 +92,12 @@ class WriterWrapper(object):
 class FileWriter(WriterWrapper):
     def _write(self, s):
         self.f.write(s)
+        return len(s)
 
 class SocketWriter(WriterWrapper):
     def _write(self, s):
-        self.f.send(s)
+        res = self.f.send(s)
+        return res
 
 class ReaderWrapper(object):
     """Provides a unified interface for reading from sockets or
@@ -109,10 +117,12 @@ class ReaderWrapper(object):
         else:
             return f
 
-    def __init__(self, file):
-        self.file = file
-        self.poll = select.poll()
-        self.poll.register(file, select.POLLIN | select.POLLPRI | select.POLLERR | select.POLLHUP | select.POLLNVAL)
+    def __init__(self, f):
+        self.file = f
+        self.poll = None
+        if hasattr(f, 'fileno'):
+            self.poll = select.poll()
+            self.poll.register(f, select.POLLIN | select.POLLPRI | select.POLLERR | select.POLLHUP | select.POLLNVAL)
         self.closed = False
 
     def __iter__(self):
@@ -127,6 +137,8 @@ class ReaderWrapper(object):
         if result == '':
             raise StopIteration
         else:
+            if debug_read:
+                print "read(%s)" % (repr(result),)
             return result
 
     def close(self):
@@ -134,6 +146,8 @@ class ReaderWrapper(object):
         self.file.close()
 
     def _wait(self):
+        if not self.poll:
+            return
         res = []
         while not res and not self.closed:
             res = self.poll.poll(self.poll_timeout)
