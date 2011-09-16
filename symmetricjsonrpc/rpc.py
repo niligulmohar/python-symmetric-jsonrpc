@@ -107,7 +107,7 @@ class RPCClient(ClientConnection):
         self._recv_waiting = {}
         ClientConnection._init(self, subject=subject, parent=parent, *arg, **kw)
 
-    def request(self, method, params=[], wait_for_response=False):
+    def request(self, method, params=[], wait_for_response=False, timeout=None):
         with self._send_lock:
             self._request_id += 1
             request_id = self._request_id
@@ -120,7 +120,7 @@ class RPCClient(ClientConnection):
 
         try:
             with self._recv_waiting[request_id]['condition']:
-                self._recv_waiting[request_id]['condition'].wait()
+                self._recv_waiting[request_id]['condition'].wait(timeout)
                 if self._recv_waiting[request_id]['result']['error'] is not None:
                     exc = Exception(*self._recv_waiting[request_id]['result']['error']['args'])
                     exc.serialized_type = self._recv_waiting[request_id]['result']['error']['type']
@@ -128,7 +128,6 @@ class RPCClient(ClientConnection):
                 return self._recv_waiting[request_id]['result']['result']
         finally:
             del self._recv_waiting[request_id]
-
 
     def respond(self, result, error, id):
         with self._send_lock:
