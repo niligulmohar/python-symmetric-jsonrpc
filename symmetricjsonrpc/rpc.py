@@ -119,7 +119,8 @@ class RPCClient(ClientConnection):
 
         try:
             with self._recv_waiting[request_id]['condition']:
-                self._recv_waiting[request_id]['condition'].wait(timeout)
+                if self._recv_waiting[request_id]['result'] == None:
+                    self._recv_waiting[request_id]['condition'].wait(timeout)
                 if self._recv_waiting[request_id]['result'].has_key('error') and self._recv_waiting[request_id]['result']['error'] is not None:
                     exc = Exception(self._recv_waiting[request_id]['result']['error']['message'])
                     raise exc
